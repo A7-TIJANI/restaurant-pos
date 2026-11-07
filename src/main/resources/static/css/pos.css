@@ -1,0 +1,212 @@
+/* Epic IT POS - screen styles carried over from v1 so cashiers need zero retraining (A2). */
+:root {
+    --primary: #2c3e50;
+    --success: #27ae60;
+    --danger: #e74c3c;
+    --bg: #f4f7f6;
+    --accent: #8e44ad;
+    --warning: #f39c12;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 0;
+    display: flex;
+    height: 100vh;
+    background: var(--bg);
+    color: #333;
+}
+
+button, input { font-family: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid #2980b9; outline-offset: 1px; }
+
+.admin-panel {
+    flex: 1;
+    padding: 20px;
+    border-right: 2px solid #d1d9e0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.header-box { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.clock { font-weight: bold; color: var(--success); font-size: 0.9rem; }
+
+.section-title {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: var(--primary);
+    text-transform: uppercase;
+    margin: 15px 0 10px;
+    border-bottom: 2px solid #d1d9e0;
+    padding-bottom: 5px;
+}
+
+/* Today's counter strip (A16) */
+.counter-strip { display: flex; gap: 8px; margin-bottom: 4px; }
+.pay-badge { background: #ecf0f1; padding: 5px 10px; border-radius: 5px; font-size: 0.8rem; text-align: center; flex: 1; }
+.pay-badge b { display: block; font-size: 0.95rem; color: var(--primary); }
+
+.top5-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
+.top5-card {
+    color: white;
+    padding: 14px 8px;
+    border-radius: 10px;
+    min-height: 80px;
+    text-align: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+.top5-card .t5-label { font-size: 0.8rem; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; line-height: 1.2; }
+.top5-card .t5-val { font-size: 1.5rem; font-weight: bold; }
+.top5-empty {
+    grid-column: 1 / -1;
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    font-style: italic;
+    padding: 14px;
+    text-align: center;
+    background: #ecf0f1;
+    border-radius: 8px;
+}
+
+.pay-bar { display: flex; gap: 6px; margin-bottom: 12px; justify-content: center; }
+.pay-btn {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #bdc3c7;
+    background: white;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: 0.15s;
+}
+.pay-btn.active { border-color: var(--primary); background: var(--primary); color: white; }
+.pay-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.menu-card {
+    border-radius: 12px;
+    padding: 16px 10px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: none;
+    position: relative;
+    user-select: none;
+}
+.menu-card:hover { transform: scale(1.05); filter: brightness(1.1); }
+.menu-card b { display: block; font-size: 1.1rem; margin-bottom: 6px; color: #fff; text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5); }
+.menu-card .price-tag {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-weight: bold;
+    color: #333;
+    font-size: 0.85rem;
+    display: inline-block;
+    margin-bottom: 6px;
+}
+.menu-card .stock-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; }
+.menu-card .stock-text { color: #fff; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7); font-size: 0.75rem; font-weight: 600; }
+
+.menu-card.out-of-stock { opacity: 0.4; filter: grayscale(0.6); cursor: default; }
+.menu-card.out-of-stock:hover { transform: none; filter: grayscale(0.6); }
+.menu-card.out-of-stock::after {
+    content: "OUT OF STOCK";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    background: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.menu-card.low-stock { box-shadow: 0 0 0 3px var(--danger), 0 4px 6px rgba(0, 0, 0, 0.1); animation: pulse-red 1.5s infinite; }
+@keyframes pulse-red {
+    0%   { box-shadow: 0 0 0 3px var(--danger); }
+    50%  { box-shadow: 0 0 0 6px rgba(231, 76, 60, 0.3); }
+    100% { box-shadow: 0 0 0 3px var(--danger); }
+}
+
+.addon-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; background: #fff; padding: 10px; border-radius: 8px; border: 1px solid #ddd; }
+.addon-tag {
+    background: #ecf0f1;
+    border: 1px solid #bdc3c7;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.15s;
+}
+.addon-tag:hover { background: var(--accent); color: white; border-color: var(--accent); }
+
+.cart-item { background: white; padding: 10px; margin-bottom: 8px; border-radius: 8px; border-left: 5px solid var(--primary); cursor: pointer; }
+.cart-item.selected { border: 2px solid var(--accent); border-left: 5px solid var(--accent); }
+.item-main { display: flex; justify-content: space-between; align-items: center; }
+.item-line-details { font-size: 0.85rem; color: var(--accent); font-weight: bold; margin-top: 3px; }
+.cart-empty {
+    font-size: 0.8rem;
+    color: #7f8c8d;
+    text-align: center;
+    padding: 14px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px dashed #bdc3c7;
+}
+
+.btn-print {
+    background: var(--success);
+    color: white;
+    border: none;
+    padding: 18px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    cursor: pointer;
+    width: 100%;
+    transition: 0.2s;
+}
+.btn-print:disabled { background: #7f8c8d; cursor: not-allowed; }
+.btn-print:hover:not(:disabled) { background: #219a52; }
+
+#toast-stack { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+.toast { min-width: 220px; max-width: 320px; padding: 12px 14px; border-radius: 8px; color: white; font-size: 0.85rem; font-weight: 600; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
+.toast.info { background: var(--primary); }
+.toast.error { background: var(--danger); }
+.toast.success { background: var(--success); }
+
+/* Right panel: 72mm receipt preview */
+.preview-area { width: 400px; background: #34495e; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; align-items: center; }
+
+.thermal-invoice { background: white; width: 72mm; padding: 4mm; font-family: 'Courier New', monospace; color: black; font-weight: 900; }
+.order-number { font-size: 28px; font-weight: 900; margin: 5px 0; border: 3px solid black; padding: 4px 12px; display: inline-block; }
+.copy-band { border-top: 2px solid black; border-bottom: 2px solid black; margin: 8px 0; font-size: 14px; font-weight: 900; }
+.items-table { width: 100%; border-collapse: collapse; }
+.items-table td { padding: 8px 0; font-size: 16px; vertical-align: top; border-bottom: 1px solid #000; font-weight: 900; }
+.addon-text { font-size: 13px; font-weight: 900; color: black; display: block; margin-top: 2px; }
+.total-row { border-top: 3px solid black; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; font-size: 22px; font-weight: 900; }
+.tear-line { height: 30px; border-bottom: 2px dashed black; margin-bottom: 20px; }
+
+/* Thermal printing: only the active print target is visible (same approach as v1) */
+.print-target { display: none; font-family: 'Courier New', monospace; color: black; font-weight: 900; background: white; }
+
+@media print {
+    body * { visibility: hidden !important; }
+    .print-target.active, .print-target.active * { visibility: visible !important; }
+    .print-target.active { display: block !important; position: absolute; left: 0; top: 0; width: 72mm; padding: 4mm; background: white; }
+}

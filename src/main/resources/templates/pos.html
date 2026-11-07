@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${restaurantName} + ' POS'">Epic IT POS</title>
+    <link rel="stylesheet" th:href="@{/css/pos.css}">
+</head>
+<body>
+
+<div id="toast-stack"></div>
+
+<div class="admin-panel">
+
+    <div class="header-box">
+        <h2 style="margin:0;" th:text="${restaurantName}">Restaurant</h2>
+        <div id="clock" class="clock"></div>
+    </div>
+
+    <!-- A16: cashier-visible counter strip. Static zeros until order finalization exists (roadmap week 6). -->
+    <div class="counter-strip" id="counter-strip">
+        <div class="pay-badge">Orders today<b id="strip-count">0</b></div>
+        <div class="pay-badge">Total<b id="strip-total">0 RWF</b></div>
+        <div class="pay-badge">Cash<b id="strip-cash">0 RWF</b></div>
+        <div class="pay-badge">MoMo<b id="strip-momo">0 RWF</b></div>
+    </div>
+
+    <div class="section-title">Top 5 Best Sellers</div>
+    <div id="top5-container" class="top5-grid">
+        <div class="top5-empty">No sales data yet — start selling!</div>
+    </div>
+
+    <div class="section-title">1. Quick Add-ons</div>
+    <div id="addon-bar" class="addon-bar">
+        <div class="addon-tag" th:each="addon : ${addons}" th:attr="data-addon-id=${addon.id}"
+             th:text="'+ ' + ${addon.name}">+ Onion</div>
+    </div>
+
+    <div class="pay-bar">
+        <button class="pay-btn active" id="pay-cash" type="button">Cash</button>
+        <button class="pay-btn" id="pay-momo" type="button">MoMo</button>
+    </div>
+
+    <div class="section-title">2. Menu</div>
+    <div id="menu-container" class="menu-grid">
+        <div class="menu-card"
+             th:each="item : ${menu}"
+             th:classappend="${item.outOfStock ? 'out-of-stock' : ''} + ' ' + ${item.lowStock ? 'low-stock' : ''}"
+             th:style="'background-color:' + ${item.color}"
+             th:attr="data-item-id=${item.id}">
+            <b th:text="${item.name}">Item</b>
+            <span class="price-tag" th:text="${#numbers.formatInteger(item.price, 1, 'COMMA')} + ' RWF'">0 RWF</span>
+            <div class="stock-row">
+                <span class="stock-text" th:text="${item.stock} + ' left'">0 left</span>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-print" id="print-btn" type="button" disabled>PRINT INVOICE</button>
+
+    <div class="section-title">Current Order</div>
+    <div id="cart-items-list">
+        <div class="cart-empty">No items yet — tap a menu item to add it.</div>
+    </div>
+</div>
+
+<div class="preview-area">
+    <div id="invoice-wrap" class="thermal-invoice">
+        <div style="text-align:center">
+            <div style="font-size:26px; font-weight:900;" th:text="${restaurantName}">Restaurant</div>
+            <div class="order-number">#<span class="curr-order-id" th:text="${nextOrderNumber}">1</span></div>
+            <div style="font-size:12px; font-weight:900;" id="print-date"></div>
+            <div class="copy-band">CUSTOMER COPY</div>
+        </div>
+        <table class="items-table"><tbody id="cust-body"></tbody></table>
+        <div class="total-row">
+            <span>TOTAL:</span><span id="total-val">0 RWF</span>
+        </div>
+        <div class="tear-line"></div>
+        <div style="text-align:center">
+            <div style="font-weight:900; font-size:18px;">KITCHEN TICKET</div>
+            <div class="order-number">#<span class="curr-order-id" th:text="${nextOrderNumber}">1</span></div>
+        </div>
+        <table class="items-table"><tbody id="kit-body"></tbody></table>
+    </div>
+</div>
+
+<script th:src="@{/js/pos.js}"></script>
+</body>
+</html>
