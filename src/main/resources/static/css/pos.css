@@ -210,3 +210,35 @@ button:focus-visible, input:focus-visible { outline: 3px solid #2980b9; outline-
     .print-target.active, .print-target.active * { visibility: visible !important; }
     .print-target.active { display: block !important; position: absolute; left: 0; top: 0; width: 72mm; padding: 4mm; background: white; }
 }
+
+/* ---- Order flow additions (weeks 3-4) ---- */
+.hint { font-weight: normal; text-transform: none; color: #7f8c8d; font-size: 0.75rem; }
+
+.cart-title { display: flex; justify-content: space-between; align-items: center; }
+.btn-cancel { background: transparent; border: 2px solid var(--danger); color: var(--danger); border-radius: 6px; padding: 4px 10px; font-weight: bold; font-size: 0.75rem; cursor: pointer; text-transform: none; }
+.btn-cancel:hover { background: var(--danger); color: white; }
+
+.qty-controls { display: flex; gap: 6px; margin-top: 8px; }
+.qty-btn { min-width: 44px; height: 36px; border: 1px solid #bdc3c7; background: #ecf0f1; border-radius: 6px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+.qty-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+.qty-btn.remove { margin-left: auto; color: var(--danger); }
+.qty-btn.remove:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+/* While an order is being printed nothing may change it */
+body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locked .qty-btn { opacity: 0.5; pointer-events: none; }
+
+.center { text-align: center; }
+.right { text-align: right; white-space: nowrap; padding-left: 8px; }
+.receipt-name { font-size: 26px; font-weight: 900; }
+.receipt-date { font-size: 12px; font-weight: 900; }
+.kitchen-title { font-weight: 900; font-size: 18px; }
+.k-qty { font-size: 22px; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 200; }
+.modal-box { background: white; border-radius: 12px; padding: 24px; max-width: 420px; width: calc(100% - 32px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35); }
+.modal-box h3 { margin: 0 0 8px; color: var(--primary); }
+.modal-box p { margin: 0 0 18px; font-size: 1rem; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.modal-btn { padding: 12px 18px; border-radius: 8px; border: 2px solid var(--primary); background: white; color: var(--primary); font-weight: bold; cursor: pointer; font-size: 0.95rem; }
+.modal-btn.primary { background: var(--success); border-color: var(--success); color: white; }
+.modal-btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
