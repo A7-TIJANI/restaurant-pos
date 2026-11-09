@@ -21,8 +21,9 @@ class PosControllerTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Meat Kofta")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("2,500 RWF")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("+ Onion")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("CUSTOMER COPY")))
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("KITCHEN TICKET")));
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"invoice-wrap\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"print-customer\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"print-kitchen\"")));
     }
 
     @Test
