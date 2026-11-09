@@ -3,8 +3,9 @@
 Offline-first desktop point-of-sale system for restaurants, rewritten from a single-file browser prototype
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
-> **Status:** early development (roadmap weeks 1–2: foundations). The POS screen is a static shell; the order
-> flow, printing, reports and backups are in progress.
+> **Status:** early development. Done: foundations (weeks 1-2) and the order flow (weeks 3-4: cart, add-ons,
+> two-step print, atomic idempotent finalize, discard, crash-resume). Next: today's orders, owner PIN/session,
+> edit/void/reprint, audit log, reports, Excel export, backup/restore.
 
 ## Why v2
 
@@ -28,6 +29,10 @@ JUnit 5 + Spring Boot Test · GitHub Actions. Packaged with `jpackage --type app
 - **Money is `BIGINT` RWF**, integer math only. Order lines snapshot item name and unit price, so menu edits
   never rewrite history. Menu items and add-ons are deactivated, never deleted.
 - **Timestamps are UTC instants**; the JVM timezone is pinned to `Africa/Kigali` at startup for report boundaries.
+- **Order state machine**: `DRAFT -> PRINTING_CUSTOMER -> PRINTING_KITCHEN -> FINALIZED` (owner may `VOID` later).
+  Exactly one in-progress order exists at a time and survives restarts. Stock changes only at finalization, in the
+  same transaction as the sale; finalizing twice is a no-op, and if stock ran out meanwhile nothing is decremented
+  and the order is reopened as a draft. A crash mid-print leads to a "was the kitchen ticket printed?" prompt on restart.
 - **Audit log is append-only by type**: its repository exposes no delete or update.
 
 ## Run locally
@@ -50,7 +55,8 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  web/       controllers (POS screen, /ping)
+  service/   OrderService (order flow), TodayCounterService
+  web/       POS screen, JSON API (/api/order, /api/today), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
   templates/      Thymeleaf pages
