@@ -3,9 +3,9 @@
 Offline-first desktop point-of-sale system for restaurants, rewritten from a single-file browser prototype
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
-> **Status:** early development. Done: foundations (weeks 1-2) and the order flow (weeks 3-4: cart, add-ons,
-> two-step print, atomic idempotent finalize, discard, crash-resume). Next: today's orders, owner PIN/session,
-> edit/void/reprint, audit log, reports, Excel export, backup/restore.
+> **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4) and the owner side
+> (week 5: PIN session, lockout, `RESET-PIN` recovery, today's orders, edit / void / reprint, audit log).
+> Next: reports, Excel export, backup/restore, first-run wizard, settings, sound.
 
 ## Why v2
 
@@ -33,7 +33,25 @@ JUnit 5 + Spring Boot Test · GitHub Actions. Packaged with `jpackage --type app
   Exactly one in-progress order exists at a time and survives restarts. Stock changes only at finalization, in the
   same transaction as the sale; finalizing twice is a no-op, and if stock ran out meanwhile nothing is decremented
   and the order is reopened as a draft. A crash mid-print leads to a "was the kitchen ticket printed?" prompt on restart.
-- **Audit log is append-only by type**: its repository exposes no delete or update.
+- **Owner security** (server-side, never just hidden buttons): the PIN is BCrypt-hashed; five wrong attempts lock it
+  (30 s, doubling to a 15 min cap) with the counters persisted in the database; entering the PIN opens a session with
+  a 10-minute idle timeout and an explicit Lock; everything under `/api/owner/**` is refused without that session.
+  BCrypt comes from `spring-security-crypto`; the session gate is a small interceptor rather than the full Spring
+  Security filter chain (no login page, CSRF or default users to configure).
+- **Owner order changes** apply to *today's* finalized orders only. Edits (payment, quantities, extra items) adjust
+  stock by the difference and refuse to oversell; a void puts all stock back and keeps the order in the books as
+  `VOIDED`; a reprint carries a `** REPRINT **` marker. Each action needs a reason and writes an audit row in the
+  same transaction.
+- **Audit log is append-only by type**: its repository exposes no delete or update. PINs and hashes are never
+  written to it.
+
+## Forgotten PIN
+
+Create an empty file named `RESET-PIN` in the data folder (`%LOCALAPPDATA%\EpicIT POS\`) and restart the app. On
+startup the PIN is removed, the lockout cleared and the file deleted; the POS shows a red "PIN was reset on ..."
+banner until a new PIN is set, and a `PIN_RESET` entry is written to the audit log. The control is physical access
+to the laptop; there are no recovery codes, security questions or developer backdoors. Sales continue normally in
+cashier mode meanwhile.
 
 ## Run locally
 
@@ -55,8 +73,8 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  service/   OrderService (order flow), TodayCounterService
-  web/       POS screen, JSON API (/api/order, /api/today), /ping
+  service/   OrderService (order flow), OwnerOrderService, PinService, AuditService, today's counter/orders
+  web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
   templates/      Thymeleaf pages
