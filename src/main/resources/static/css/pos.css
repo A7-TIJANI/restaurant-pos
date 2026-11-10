@@ -242,3 +242,45 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .modal-btn { padding: 12px 18px; border-radius: 8px; border: 2px solid var(--primary); background: white; color: var(--primary); font-weight: bold; cursor: pointer; font-size: 0.95rem; }
 .modal-btn.primary { background: var(--success); border-color: var(--success); color: white; }
 .modal-btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
+
+/* ---- Owner area, today's orders, forms (week 5) ---- */
+.header-right { display: flex; align-items: center; gap: 12px; }
+.owner-btn { background: white; border: 2px solid var(--primary); color: var(--primary); border-radius: 6px; padding: 6px 12px; font-weight: bold; font-size: 0.8rem; cursor: pointer; }
+.owner-btn:hover { background: var(--primary); color: white; }
+.owner-btn.unlocked { background: var(--accent); border-color: var(--accent); color: white; }
+
+.reset-banner { background: var(--danger); color: white; padding: 12px 14px; border-radius: 8px; margin-bottom: 12px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.reset-banner[hidden] { display: none; }
+.reset-banner button { background: white; color: var(--danger); border: none; border-radius: 6px; padding: 8px 14px; font-weight: bold; cursor: pointer; }
+
+.orders-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 20px; }
+.order-row { background: white; border-radius: 8px; border-left: 5px solid var(--success); padding: 8px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 0.9rem; }
+.order-row.voided { border-left-color: #95a5a6; color: #7f8c8d; }
+.order-row.voided .o-total { text-decoration: line-through; }
+.o-no { font-weight: bold; min-width: 42px; }
+.o-time { color: #7f8c8d; min-width: 44px; }
+.o-total { font-weight: bold; margin-left: auto; }
+.badge { font-size: 0.7rem; font-weight: bold; text-transform: uppercase; padding: 2px 8px; border-radius: 10px; color: white; }
+.badge.voided { background: #95a5a6; }
+.badge.progress { background: var(--warning); }
+.o-actions { display: flex; gap: 6px; flex-basis: 100%; justify-content: flex-end; }
+.o-btn { border: 1px solid var(--primary); background: white; color: var(--primary); border-radius: 6px; padding: 4px 10px; font-size: 0.75rem; font-weight: bold; cursor: pointer; }
+.o-btn:hover { background: var(--primary); color: white; }
+.o-btn.void { border-color: var(--danger); color: var(--danger); }
+.o-btn.void:hover { background: var(--danger); color: white; }
+
+.modal-intro { color: #7f8c8d; font-size: 0.9rem; margin-top: -4px; }
+.form-field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-size: 0.85rem; font-weight: bold; color: var(--primary); }
+.form-field input, .form-field select, .edit-add select, .edit-add input, .edit-line input, .modal-box select { padding: 10px; border: 2px solid #bdc3c7; border-radius: 6px; font-size: 1rem; }
+.form-error { color: var(--danger); font-weight: bold; font-size: 0.9rem; margin: 0 0 12px; }
+.form-error[hidden] { display: none; }
+.modal-box select { width: 100%; margin-bottom: 12px; }
+.edit-lines { margin-bottom: 12px; }
+.edit-lines-title, .edit-add > span { font-size: 0.85rem; font-weight: bold; color: var(--primary); display: block; margin-bottom: 6px; }
+.edit-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.edit-line input { width: 90px; }
+.edit-add { margin-bottom: 12px; display: grid; grid-template-columns: 1fr 90px; gap: 6px; }
+.edit-add > span { grid-column: 1 / -1; margin-bottom: 0; }
+.edit-add select { margin-bottom: 0; }
+
+.reprint-mark { font-weight: 900; font-size: 18px; border: 3px dashed black; padding: 2px 8px; margin-bottom: 6px; display: inline-block; }

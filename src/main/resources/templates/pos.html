@@ -13,9 +13,18 @@
 
 <div class="admin-panel">
 
+    <!-- A14: shown (by pos.js) while the PIN was reset via RESET-PIN and no new PIN has been set yet -->
+    <div id="reset-banner" class="reset-banner" hidden>
+        <span id="reset-text"></span>
+        <button type="button" id="reset-setup-btn">Set PIN</button>
+    </div>
+
     <div class="header-box">
         <h2 style="margin:0;" th:text="${restaurantName}">Restaurant</h2>
-        <div id="clock" class="clock"></div>
+        <div class="header-right">
+            <div id="clock" class="clock"></div>
+            <button type="button" id="owner-btn" class="owner-btn">Owner</button>
+        </div>
     </div>
 
     <!-- A16: cashier-visible counter strip (today's finalized orders; refreshed on every finalize) -->
@@ -68,6 +77,11 @@
     </div>
     <div id="cart-items-list">
         <div class="cart-empty">No items yet — tap a menu item to add it.</div>
+    </div>
+
+    <div class="section-title">Today's Orders</div>
+    <div id="orders-list" class="orders-list">
+        <div class="cart-empty">No orders yet today.</div>
     </div>
 </div>
 

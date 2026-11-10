@@ -23,6 +23,16 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
     /** The one in-progress order (DRAFT or a PRINTING_* state), newest first as a safety net (A12). */
     Optional<CustomerOrder> findFirstByStatusInOrderByIdDesc(Collection<OrderStatus> statuses);
 
+    /** Finalized or voided orders whose finalization falls in [from, to), newest first (today's orders list). */
+    @Query("""
+            select o from CustomerOrder o
+            where o.status in :statuses and o.finalizedAt >= :from and o.finalizedAt < :to
+            order by o.finalizedAt desc, o.id desc
+            """)
+    List<CustomerOrder> findFinishedBetween(@Param("statuses") Collection<OrderStatus> statuses,
+                                            @Param("from") Instant from,
+                                            @Param("to") Instant to);
+
     /** Orders in the given status finalized within [dayStart, dayEnd), grouped by payment method. */
     @Query("""
             select new com.epicit.pos.repo.PaymentTotals(o.paymentMethod, count(o), coalesce(sum(o.total), 0L))

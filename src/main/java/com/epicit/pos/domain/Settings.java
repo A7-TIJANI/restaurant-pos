@@ -38,6 +38,10 @@ public class Settings {
     @Column(name = "pin_locked_until")
     private Instant pinLockedUntil;
 
+    /** Set when the PIN was reset via the RESET-PIN file; cleared when a new PIN is set (A14). Drives the banner. */
+    @Column(name = "pin_reset_at")
+    private Instant pinResetAt;
+
     protected Settings() {
     }
 
@@ -56,4 +60,6 @@ public class Settings {
     public void setLastFailedPinAt(Instant lastFailedPinAt) { this.lastFailedPinAt = lastFailedPinAt; }
     public Instant getPinLockedUntil() { return pinLockedUntil; }
     public void setPinLockedUntil(Instant pinLockedUntil) { this.pinLockedUntil = pinLockedUntil; }
+    public Instant getPinResetAt() { return pinResetAt; }
+    public void setPinResetAt(Instant pinResetAt) { this.pinResetAt = pinResetAt; }
 }

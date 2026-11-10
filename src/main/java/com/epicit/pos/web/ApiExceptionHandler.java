@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Business rule violations become {"error": CODE, "message": "..."} with a meaningful status. */
-@RestControllerAdvice(assignableTypes = OrderApiController.class)
+@RestControllerAdvice(basePackages = "com.epicit.pos.web")
 public class ApiExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
