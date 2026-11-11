@@ -33,6 +33,28 @@ public interface OrderRepository extends JpaRepository<CustomerOrder, Long> {
                                             @Param("from") Instant from,
                                             @Param("to") Instant to);
 
+    /** Reports: one lightweight row per order in [from, to); the service buckets them by Kigali day/week/month. */
+    @Query("""
+            select new com.epicit.pos.repo.SaleRow(o.finalizedAt, o.paymentMethod, o.total)
+            from CustomerOrder o
+            where o.status = :status and o.finalizedAt >= :from and o.finalizedAt < :to
+            """)
+    List<SaleRow> salesBetween(@Param("status") OrderStatus status,
+                               @Param("from") Instant from,
+                               @Param("to") Instant to);
+
+    /** Reports: items sold in [from, to) for orders in the given status, best sellers first. */
+    @Query("""
+            select new com.epicit.pos.repo.ItemTotals(l.itemName, sum(l.qty), sum(l.qty * l.unitPrice))
+            from OrderLine l
+            where l.order.status = :status and l.order.finalizedAt >= :from and l.order.finalizedAt < :to
+            group by l.itemName
+            order by sum(l.qty) desc, l.itemName asc
+            """)
+    List<ItemTotals> itemTotalsBetween(@Param("status") OrderStatus status,
+                                       @Param("from") Instant from,
+                                       @Param("to") Instant to);
+
     /** Orders in the given status finalized within [dayStart, dayEnd), grouped by payment method. */
     @Query("""
             select new com.epicit.pos.repo.PaymentTotals(o.paymentMethod, count(o), coalesce(sum(o.total), 0L))
