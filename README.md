@@ -3,9 +3,9 @@
 Offline-first desktop point-of-sale system for restaurants, rewritten from a single-file browser prototype
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
-> **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4) and the owner side
-> (week 5: PIN session, lockout, `RESET-PIN` recovery, today's orders, edit / void / reprint, audit log).
-> Next: reports, Excel export, backup/restore, first-run wizard, settings, sound.
+> **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4), owner security and order
+> management (week 5), reports (week 6: today with item breakdown, 7 days, 4 weeks, 12 months, 72mm print,
+> cashier Top-5). Next: Excel export, backup/restore, first-run wizard, settings, sound.
 
 ## Why v2
 
@@ -45,6 +45,15 @@ JUnit 5 + Spring Boot Test · GitHub Actions. Packaged with `jpackage --type app
 - **Audit log is append-only by type**: its repository exposes no delete or update. PINs and hashes are never
   written to it.
 
+## Reports
+
+Owner-only (`/api/owner/reports/{today,days,weeks,months}`). Revenue counts finalized orders only; voided orders are
+excluded and shown as a separate note on the Today report. Rows are bucketed in plain Java by
+**Africa/Kigali calendar day / Monday-start week / month**, never by the UTC date stored in the database, so a sale at
+00:30 Kigali time lands on the new day. The last bucket is the current (partial) period, and empty days, weeks and
+months still appear as zero rows. Print uses a stacked 72mm layout. Cashiers see only the Top-5 best sellers by
+quantity on the POS screen, never revenue per item.
+
 ## Forgotten PIN
 
 Create an empty file named `RESET-PIN` in the data folder (`%LOCALAPPDATA%\EpicIT POS\`) and restart the app. On
@@ -73,8 +82,8 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  service/   OrderService (order flow), OwnerOrderService, PinService, AuditService, today's counter/orders
-  web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner), /ping
+  service/   OrderService (order flow), OwnerOrderService, ReportService, PinService, AuditService, today's counter/orders
+  web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
   templates/      Thymeleaf pages
