@@ -329,6 +329,7 @@
         btn.textContent = owner.unlocked ? 'Lock owner area' : 'Owner';
         btn.classList.toggle('unlocked', !!owner.unlocked);
         document.body.classList.toggle('owner', !!owner.unlocked);
+        $('reports-btn').hidden = !owner.unlocked;
         var banner = $('reset-banner');
         var showBanner = !owner.pinSet && !!owner.resetAt;
         banner.hidden = !showBanner;
@@ -553,6 +554,202 @@
             render();
         }
     }
+
+
+    // ---- reports (FR-4): owner-only, four tabs, printable on 72mm ------------------------------------------
+
+    var REPORT_TABS = [
+        ['today', 'Today', '/api/owner/reports/today'],
+        ['days', '7 Days', '/api/owner/reports/days'],
+        ['weeks', '4 Weeks', '/api/owner/reports/weeks'],
+        ['months', '12 Months', '/api/owner/reports/months']
+    ];
+
+    function longDate(isoDate) {
+        // isoDate is a Kigali calendar day (yyyy-mm-dd); format it without any timezone shifting
+        return new Date(isoDate + 'T12:00:00Z')
+            .toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function cell(tag, text, className) { return el(tag, className || null, text); }
+
+    function reportScreenNode(kind, data) {
+        var root = el('div', 'report');
+        if (kind === 'today') {
+            root.appendChild(el('h4', null, longDate(data.date)));
+            var sum = el('table', 'report-table summary');
+            [['Orders', data.totals.orders], ['Revenue', money(data.totals.revenue)],
+                ['Cash', money(data.totals.cash)], ['MoMo', money(data.totals.momo)]].forEach(function (r) {
+                var tr = el('tr');
+                tr.appendChild(cell('th', r[0]));
+                tr.appendChild(cell('td', r[1], 'num'));
+                sum.appendChild(tr);
+            });
+            root.appendChild(sum);
+            if (data.voidedOrders > 0) {
+                root.appendChild(el('p', 'report-note', data.voidedOrders + ' voided order' + (data.voidedOrders === 1 ? '' : 's')
+                    + ' (' + money(data.voidedTotal) + ') not counted above.'));
+            }
+            root.appendChild(el('h4', null, 'Items sold'));
+            if (data.items.length === 0) {
+                root.appendChild(el('p', 'report-note', 'Nothing sold yet today.'));
+            } else {
+                var items = el('table', 'report-table');
+                var head = el('tr');
+                ['Item', 'Qty', 'Revenue'].forEach(function (h, i) { head.appendChild(cell('th', h, i ? 'num' : '')); });
+                items.appendChild(head);
+                data.items.forEach(function (it, i) {
+                    var tr = el('tr', i < 5 ? 'top-item' : '');
+                    tr.appendChild(cell('td', (i < 5 ? (i + 1) + '. ' : '') + it.name));
+                    tr.appendChild(cell('td', it.qty, 'num'));
+                    tr.appendChild(cell('td', money(it.revenue), 'num'));
+                    items.appendChild(tr);
+                });
+                root.appendChild(items);
+            }
+            return root;
+        }
+        root.appendChild(el('h4', null, data.title));
+        var table = el('table', 'report-table');
+        var h = el('tr');
+        ['Period', 'Orders', 'Revenue', 'Cash', 'MoMo'].forEach(function (t, i) { h.appendChild(cell('th', t, i ? 'num' : '')); });
+        table.appendChild(h);
+        data.rows.forEach(function (r) {
+            var tr = el('tr', r.orders === 0 ? 'empty-row' : '');
+            tr.appendChild(cell('td', r.label));
+            tr.appendChild(cell('td', r.orders, 'num'));
+            tr.appendChild(cell('td', money(r.revenue), 'num'));
+            tr.appendChild(cell('td', money(r.cash), 'num'));
+            tr.appendChild(cell('td', money(r.momo), 'num'));
+            table.appendChild(tr);
+        });
+        var t = data.totals;
+        var total = el('tr', 'total-row-r');
+        total.appendChild(cell('td', 'Total'));
+        total.appendChild(cell('td', t.orders, 'num'));
+        total.appendChild(cell('td', money(t.revenue), 'num'));
+        total.appendChild(cell('td', money(t.cash), 'num'));
+        total.appendChild(cell('td', money(t.momo), 'num'));
+        table.appendChild(total);
+        root.appendChild(table);
+        return root;
+    }
+
+    // 72mm paper fits ~33 characters, so each row is stacked instead of tabulated.
+    function line(left, right) {
+        var d = el('div', 'rp-line');
+        d.appendChild(el('span', null, left));
+        d.appendChild(el('span', null, right));
+        return d;
+    }
+
+    function reportPrintNode(kind, data) {
+        var root = el('div');
+        var head = el('div', 'center');
+        head.appendChild(el('div', 'receipt-name', RESTAURANT));
+        head.appendChild(el('div', 'copy-band', 'REPORT — ' + (kind === 'today' ? 'TODAY' : data.title.toUpperCase())));
+        head.appendChild(el('div', 'receipt-date', 'Printed ' + stamp()));
+        root.appendChild(head);
+
+        if (kind === 'today') {
+            root.appendChild(el('div', 'rp-label', longDate(data.date)));
+            root.appendChild(line('Orders', String(data.totals.orders)));
+            root.appendChild(line('Revenue', money(data.totals.revenue)));
+            root.appendChild(line('Cash', money(data.totals.cash)));
+            root.appendChild(line('MoMo', money(data.totals.momo)));
+            if (data.voidedOrders > 0) {
+                root.appendChild(el('div', 'rp-note', 'Not counted: ' + data.voidedOrders + ' voided (' + money(data.voidedTotal) + ')'));
+            }
+            root.appendChild(el('div', 'rp-section', 'ITEMS SOLD'));
+            data.items.forEach(function (it, i) {
+                var block = el('div', 'rp-row');
+                block.appendChild(el('div', 'rp-label', (i < 5 ? (i + 1) + '. ' : '') + it.name));
+                block.appendChild(line(it.qty + ' sold', money(it.revenue)));
+                root.appendChild(block);
+            });
+            return root;
+        }
+        data.rows.forEach(function (r) {
+            var block = el('div', 'rp-row');
+            block.appendChild(el('div', 'rp-label', r.label));
+            block.appendChild(line('Orders ' + r.orders, money(r.revenue)));
+            block.appendChild(line('Cash ' + Number(r.cash).toLocaleString('en-US'), 'MoMo ' + Number(r.momo).toLocaleString('en-US')));
+            root.appendChild(block);
+        });
+        var t = data.totals;
+        var total = el('div', 'rp-total');
+        total.appendChild(el('div', 'rp-label', 'TOTAL'));
+        total.appendChild(line('Orders ' + t.orders, money(t.revenue)));
+        total.appendChild(line('Cash ' + Number(t.cash).toLocaleString('en-US'), 'MoMo ' + Number(t.momo).toLocaleString('en-US')));
+        root.appendChild(total);
+        return root;
+    }
+
+    function openReports() {
+        var root = $('modal-root');
+        root.textContent = '';
+        var overlay = el('div', 'modal-overlay');
+        var box = el('div', 'modal-box wide');
+        box.setAttribute('role', 'dialog');
+        box.appendChild(el('h3', null, 'Reports'));
+
+        var tabs = el('div', 'report-tabs');
+        var body = el('div', 'report-body');
+        var actions = el('div', 'modal-actions');
+        var printBtn = el('button', 'modal-btn primary', 'Print');
+        printBtn.type = 'button';
+        printBtn.disabled = true;
+        var closeBtn = el('button', 'modal-btn secondary', 'Close');
+        closeBtn.type = 'button';
+        closeBtn.addEventListener('click', closeModal);
+        actions.appendChild(printBtn);
+        actions.appendChild(closeBtn);
+
+        var loaded = null;   // { kind, data } of the tab on screen
+        var tabButtons = REPORT_TABS.map(function (tab) {
+            var b = el('button', 'report-tab', tab[1]);
+            b.type = 'button';
+            b.addEventListener('click', function () { show(tab, b); });
+            tabs.appendChild(b);
+            return b;
+        });
+
+        async function show(tab, button) {
+            tabButtons.forEach(function (b) { b.classList.toggle('active', b === button); });
+            printBtn.disabled = true;
+            loaded = null;
+            body.textContent = 'Loading…';
+            var r = await call('GET', tab[2]);
+            if (!owner.unlocked) { closeModal(); return; }   // the owner session ended (call() already said so)
+            if (!r.ok) {
+                body.textContent = (r.data && r.data.message) || 'Could not load the report.';
+                return;
+            }
+            loaded = { kind: tab[0], data: r.data };
+            body.textContent = '';
+            body.appendChild(reportScreenNode(tab[0], r.data));
+            printBtn.disabled = false;
+        }
+
+        printBtn.addEventListener('click', function () {
+            if (!loaded) { return; }
+            queue(async function () {
+                var target = $('print-report');
+                target.textContent = '';
+                target.appendChild(reportPrintNode(loaded.kind, loaded.data));
+                await printTarget('print-report');
+            });
+        });
+
+        box.appendChild(tabs);
+        box.appendChild(body);
+        box.appendChild(actions);
+        overlay.appendChild(box);
+        root.appendChild(overlay);
+        show(REPORT_TABS[0], tabButtons[0]);
+    }
+
+    $('reports-btn').addEventListener('click', openReports);
 
     // ---- the two-step print sequence (FR-2) ------------------------------------------------------------
 
