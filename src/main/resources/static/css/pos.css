@@ -284,3 +284,36 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .edit-add select { margin-bottom: 0; }
 
 .reprint-mark { font-weight: 900; font-size: 18px; border: 3px dashed black; padding: 2px 8px; margin-bottom: 6px; display: inline-block; }
+
+/* Top-5 best sellers (today, by quantity) */
+.top5-card.rank-1 { background: #e74c3c; }
+.top5-card.rank-2 { background: #e67e22; }
+.top5-card.rank-3 { background: #27ae60; }
+.top5-card.rank-4 { background: #2980b9; }
+.top5-card.rank-5 { background: #8e44ad; }
+
+/* ---- Reports (week 6) ---- */
+.modal-box.wide { max-width: 780px; max-height: 90vh; overflow-y: auto; }
+.report-tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+.report-tab { padding: 10px 16px; border: 2px solid var(--primary); background: white; color: var(--primary); border-radius: 8px; font-weight: bold; cursor: pointer; }
+.report-tab.active { background: var(--primary); color: white; }
+.report-body { min-height: 120px; margin-bottom: 14px; }
+.report h4 { margin: 14px 0 8px; color: var(--primary); }
+.report-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.report-table th, .report-table td { padding: 7px 8px; border-bottom: 1px solid #e1e6ea; text-align: left; }
+.report-table th { background: #ecf0f1; color: var(--primary); font-size: 0.8rem; text-transform: uppercase; }
+.report-table .num { text-align: right; white-space: nowrap; }
+.report-table.summary { max-width: 360px; }
+.report-table.summary th { background: none; text-transform: none; font-size: 0.9rem; }
+.report-table .empty-row td { color: #95a5a6; }
+.report-table .top-item td { font-weight: bold; }
+.report-table .total-row-r td { font-weight: bold; border-top: 2px solid var(--primary); background: #f4f7f6; }
+.report-note { color: #7f8c8d; font-size: 0.85rem; margin: 8px 0; }
+
+/* 72mm printout of a report */
+.rp-line { display: flex; justify-content: space-between; font-size: 13px; font-weight: 900; }
+.rp-label { font-weight: 900; font-size: 14px; margin-top: 4px; }
+.rp-row { border-bottom: 1px dashed black; padding: 5px 0; }
+.rp-total { border-top: 3px solid black; margin-top: 8px; padding-top: 6px; }
+.rp-section { border-top: 2px solid black; border-bottom: 2px solid black; margin: 10px 0 4px; font-weight: 900; text-align: center; }
+.rp-note { font-size: 12px; font-weight: 900; margin: 6px 0; }

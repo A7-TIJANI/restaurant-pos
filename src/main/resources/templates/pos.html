@@ -23,6 +23,7 @@
         <h2 style="margin:0;" th:text="${restaurantName}">Restaurant</h2>
         <div class="header-right">
             <div id="clock" class="clock"></div>
+            <button type="button" id="reports-btn" class="owner-btn" hidden>Reports</button>
             <button type="button" id="owner-btn" class="owner-btn">Owner</button>
         </div>
     </div>
@@ -40,7 +41,11 @@
 
     <div class="section-title">Top 5 Best Sellers</div>
     <div id="top5-container" class="top5-grid">
-        <div class="top5-empty">No sales data yet — start selling!</div>
+        <div class="top5-card" th:each="t, st : ${top5}" th:classappend="'rank-' + ${st.count}">
+            <div class="t5-label" th:text="${t.name()}">Item</div>
+            <div class="t5-val" th:text="${t.qty()}">0</div>
+        </div>
+        <div class="top5-empty" th:if="${#lists.isEmpty(top5)}">No sales data yet — start selling!</div>
     </div>
 
     <div class="section-title">1. Quick Add-ons <span class="hint">(tap an order line below first)</span></div>
@@ -93,6 +98,7 @@
 <!-- Print targets: only the one marked .active is visible while printing (same approach as v1) -->
 <div id="print-customer" class="print-target"></div>
 <div id="print-kitchen" class="print-target"></div>
+<div id="print-report" class="print-target"></div>
 
 <script th:src="@{/js/pos.js}"></script>
 </body>
