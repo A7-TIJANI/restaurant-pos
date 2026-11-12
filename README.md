@@ -4,8 +4,8 @@ Offline-first desktop point-of-sale system for restaurants, rewritten from a sin
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
 > **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4), owner security and order
-> management (week 5), reports (week 6: today with item breakdown, 7 days, 4 weeks, 12 months, 72mm print,
-> cashier Top-5). Next: Excel export, backup/restore, first-run wizard, settings, sound.
+> management (week 5), reports (week 6), Excel export and backups (week 7, part 1). Next: restore, first-run
+> wizard, settings, sound.
 
 ## Why v2
 
@@ -54,6 +54,15 @@ excluded and shown as a separate note on the Today report. Rows are bucketed in 
 months still appear as zero rows. Print uses a stacked 72mm layout. Cashiers see only the Top-5 best sellers by
 quantity on the POS screen, never revenue per item.
 
+## Excel export and backups
+
+Owner-only **Data** button. *Export to Excel* downloads `EpicIT-Report-YYYY-MM-DD.xlsx` (sheets: Summary, Today,
+Last 7 Days, Last 4 Weeks, Last 12 Months; real numeric cells, item breakdown per period) and keeps a copy in the
+backup folder. *Back up now* uses H2's online `BACKUP TO`, repackaged as `epicit-pos-backup-YYYY-MM-DD.zip`
+(`epicit-pos.mv.db` + `manifest.json`), written under a temporary name then renamed so a crash never leaves a
+half-written backup. A silent snapshot runs a few seconds after every start (a failure is only logged). Only the
+newest 30 backups are kept; other files in the folder are never touched. The folder comes from `config.properties`.
+
 ## Forgotten PIN
 
 Create an empty file named `RESET-PIN` in the data folder (`%LOCALAPPDATA%\EpicIT POS\`) and restart the app. On
@@ -82,7 +91,8 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  service/   OrderService (order flow), OwnerOrderService, ReportService, PinService, AuditService, today's counter/orders
+  service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, PinService, AuditService, today's counter/orders
+  backup/    BackupService (zip snapshots + rotation), StartupSnapshot
   web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
