@@ -4,9 +4,11 @@ import com.epicit.pos.domain.OrderStatus;
 import com.epicit.pos.domain.PaymentMethod;
 import com.epicit.pos.repo.ItemTotals;
 import com.epicit.pos.repo.OrderRepository;
+import com.epicit.pos.repo.PaymentTotals;
 import com.epicit.pos.repo.SaleRow;
 import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -106,6 +108,31 @@ public class ReportService {
             starts.add(thisMonth.minusMonths(i));
         }
         return period("Last 12 months", starts, d -> d.withDayOfMonth(1), d -> MONTH_LABEL.format(d));
+    }
+
+    // ---- used by the Excel export ------------------------------------------------------------------------------
+
+    /** Items sold between two Kigali calendar days, both inclusive, best sellers first. */
+    public List<ItemRow> items(LocalDate from, LocalDate toInclusive) {
+        ZoneId zone = clock.getZone();
+        return itemRows(from.atStartOfDay(zone).toInstant(), toInclusive.plusDays(1).atStartOfDay(zone).toInstant());
+    }
+
+    /** Everything ever sold (finalized orders only). */
+    public Totals lifetime() {
+        long count = 0;
+        long cash = 0;
+        long momo = 0;
+        for (PaymentTotals row : orders.totalsByPayment(OrderStatus.FINALIZED, Instant.EPOCH,
+                clock.instant().plus(Duration.ofDays(1)))) {
+            count += row.count();
+            if (row.method() == PaymentMethod.CASH) {
+                cash += row.total();
+            } else {
+                momo += row.total();
+            }
+        }
+        return new Totals(count, cash + momo, cash, momo);
     }
 
     // ---- internals --------------------------------------------------------------------------------------------
