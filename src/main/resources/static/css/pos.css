@@ -317,3 +317,10 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .rp-total { border-top: 3px solid black; margin-top: 8px; padding-top: 6px; }
 .rp-section { border-top: 2px solid black; border-bottom: 2px solid black; margin: 10px 0 4px; font-weight: 900; text-align: center; }
 .rp-note { font-size: 12px; font-weight: 900; margin: 6px 0; }
+
+/* ---- Data modal (export + backups) ---- */
+.data-status { min-height: 1.4em; margin: 0 0 .75rem; }
+.data-folder { font-size: .85rem; color: #555; word-break: break-all; margin: .75rem 0 .25rem; }
+.backup-list { list-style: none; margin: .25rem 0 1rem; padding: 0; max-height: 14rem; overflow: auto; font-size: .9rem; }
+.backup-list li { padding: .3rem 0; border-bottom: 1px solid #e5e5e5; }
+.backup-list .muted { color: #777; }
