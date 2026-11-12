@@ -330,6 +330,7 @@
         btn.classList.toggle('unlocked', !!owner.unlocked);
         document.body.classList.toggle('owner', !!owner.unlocked);
         $('reports-btn').hidden = !owner.unlocked;
+        $('data-btn').hidden = !owner.unlocked;
         var banner = $('reset-banner');
         var showBanner = !owner.pinSet && !!owner.resetAt;
         banner.hidden = !showBanner;
@@ -750,6 +751,106 @@
     }
 
     $('reports-btn').addEventListener('click', openReports);
+
+    // ---- data: Excel export and backups (FR-5, FR-7) ----------------------------------------------------
+
+    function kb(bytes) { return Math.max(1, Math.round(bytes / 1024)).toLocaleString('en-US') + ' KB'; }
+
+    function openData() {
+        var root = $('modal-root');
+        root.textContent = '';
+        var overlay = el('div', 'modal-overlay');
+        var box = el('div', 'modal-box wide');
+        box.setAttribute('role', 'dialog');
+        box.appendChild(el('h3', null, 'Data'));
+
+        var status = el('p', 'data-status');
+        var excelBtn = el('button', 'modal-btn primary', 'Export to Excel');
+        excelBtn.type = 'button';
+        var backupBtn = el('button', 'modal-btn secondary', 'Back up now');
+        backupBtn.type = 'button';
+        var folder = el('p', 'data-folder');
+        var list = el('ul', 'backup-list');
+        var closeBtn = el('button', 'modal-btn secondary', 'Close');
+        closeBtn.type = 'button';
+        closeBtn.addEventListener('click', closeModal);
+
+        var buttons = el('div', 'modal-actions');
+        buttons.appendChild(excelBtn);
+        buttons.appendChild(backupBtn);
+
+        function say(message, bad) {
+            status.textContent = message;
+            status.classList.toggle('form-error', !!bad);
+        }
+
+        async function loadList() {
+            var r = await call('GET', '/api/owner/backups');
+            if (!owner.unlocked) { closeModal(); return; }
+            list.textContent = '';
+            if (!r.ok) { say((r.data && r.data.message) || 'Could not read the backup folder.', true); return; }
+            folder.textContent = 'Backup folder: ' + r.data.folder;
+            if (!r.data.backups.length) { list.appendChild(el('li', 'muted', 'No backups yet.')); return; }
+            r.data.backups.forEach(function (b) {
+                list.appendChild(el('li', null, b.name + '  ·  ' + kb(b.sizeBytes) + '  ·  ' + stamp(b.modified)));
+            });
+        }
+
+        excelBtn.addEventListener('click', async function () {
+            excelBtn.disabled = true;
+            say('Building the workbook…');
+            try {
+                var res = await fetch('/api/owner/export.xlsx');
+                if (!res.ok) {
+                    var err = null;
+                    try { err = await res.json(); } catch (ignore) { /* not JSON */ }
+                    if (res.status === 401) { owner.unlocked = false; renderOwner(); closeModal(); toast('Owner session ended. Enter the PIN again.', 'error'); return; }
+                    say((err && err.message) || 'The export failed.', true);
+                    return;
+                }
+                var name = ((res.headers.get('Content-Disposition') || '').match(/filename="?([^";]+)"?/) || [])[1] || 'EpicIT-Report.xlsx';
+                var url = URL.createObjectURL(await res.blob());
+                var a = el('a');
+                a.href = url;
+                a.download = name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+                say('Saved ' + name + ' to your Downloads folder.');
+                loadList();
+            } catch (e) {
+                say('Cannot reach the POS service. Is the app still running?', true);
+            } finally {
+                excelBtn.disabled = false;
+            }
+        });
+
+        backupBtn.addEventListener('click', async function () {
+            backupBtn.disabled = true;
+            say('Backing up…');
+            var r = await call('POST', '/api/owner/backup');
+            backupBtn.disabled = false;
+            if (!owner.unlocked) { closeModal(); return; }
+            if (!r.ok) { say((r.data && r.data.message) || 'The backup failed.', true); return; }
+            say('Backup saved: ' + r.data.file);
+            loadList();
+        });
+
+        box.appendChild(status);
+        box.appendChild(buttons);
+        box.appendChild(folder);
+        box.appendChild(el('h4', null, 'Backups (newest first, the last 30 are kept)'));
+        box.appendChild(list);
+        var actions = el('div', 'modal-actions');
+        actions.appendChild(closeBtn);
+        box.appendChild(actions);
+        overlay.appendChild(box);
+        root.appendChild(overlay);
+        loadList();
+    }
+
+    $('data-btn').addEventListener('click', openData);
 
     // ---- the two-step print sequence (FR-2) ------------------------------------------------------------
 
