@@ -1,5 +1,6 @@
 package com.epicit.pos;
 
+import com.epicit.pos.backup.RestoreApplier;
 import com.epicit.pos.config.AppPaths;
 import com.epicit.pos.startup.BrowserLauncher;
 import com.epicit.pos.startup.SingleInstanceGuard;
@@ -38,6 +39,13 @@ public class EpicItPosApplication {
             paths.ensureDirectories();
         } catch (IOException e) {
             throw new UncheckedIOException("Cannot create data folder " + paths.dataDir(), e);
+        }
+        // FR-7.3: a restore chosen in the previous run is swapped in before the database is opened
+        try {
+            RestoreApplier.applyIfPending(paths, java.time.Clock.systemUTC());
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not apply the pending restore. Your data is untouched; delete the "
+                    + paths.restorePendingDir() + " folder to start normally.", e);
         }
         System.setProperty(AppPaths.DATA_DIR_PROPERTY, paths.dataDir().toString());
         if (System.getProperty("spring.datasource.url") == null) {
