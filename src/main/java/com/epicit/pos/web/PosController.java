@@ -36,6 +36,7 @@ public class PosController {
     public String pos(Model model) {
         Settings s = settings.findById(Settings.SINGLETON_ID).orElseThrow();
         model.addAttribute("restaurantName", s.getRestaurantName());
+        model.addAttribute("soundMuted", s.isSoundMuted());
         model.addAttribute("menu", menuItems.findByActiveTrueOrderByIdAsc());
         model.addAttribute("addons", addons.findByActiveTrueOrderByIdAsc());
         model.addAttribute("today", counter.today());

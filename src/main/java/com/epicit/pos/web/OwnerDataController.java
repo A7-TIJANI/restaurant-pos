@@ -2,6 +2,7 @@ package com.epicit.pos.web;
 
 import com.epicit.pos.backup.BackupService;
 import com.epicit.pos.backup.BackupService.BackupInfo;
+import com.epicit.pos.backup.RestoreService;
 import com.epicit.pos.service.ExcelExportService;
 import com.epicit.pos.service.ExcelExportService.Export;
 import com.epicit.pos.service.BusinessException;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,15 +28,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/owner")
 public class OwnerDataController {
 
-    public record BackupStatus(String folder, List<BackupInfo> backups) {
+    public record RestoreRequest(String name) {
+    }
+
+    public record BackupStatus(String folder, List<BackupInfo> backups, boolean restorePending) {
     }
 
     private final ExcelExportService excel;
     private final BackupService backups;
+    private final RestoreService restore;
 
-    public OwnerDataController(ExcelExportService excel, BackupService backups) {
+    public OwnerDataController(ExcelExportService excel, BackupService backups, RestoreService restore) {
         this.excel = excel;
         this.backups = backups;
+        this.restore = restore;
     }
 
     /** The download is the deliverable; the copy in the backup folder (FR-5.3) is best effort. */
@@ -57,7 +64,7 @@ public class OwnerDataController {
 
     @GetMapping("/backups")
     public BackupStatus status() {
-        return new BackupStatus(backups.folder().toString(), backups.list());
+        return new BackupStatus(backups.folder().toString(), backups.list(), restore.restorePending());
     }
 
     @PostMapping("/backup")
@@ -70,5 +77,19 @@ public class OwnerDataController {
                     "Backup failed. Check that the backup folder exists and has free space.");
         }
         return Map.of("file", file.getFileName().toString(), "folder", backups.folder().toString());
+    }
+
+    /** Validates the chosen backup and stages it; the swap happens at the next start (FR-7.3). */
+    @PostMapping("/restore")
+    public Map<String, Object> restore(@RequestBody RestoreRequest request) {
+        RestoreService.Staged staged = restore.stage(request == null ? "" : String.valueOf(request.name()));
+        return Map.of("backup", staged.backup(), "restaurantName", staged.restaurantName(),
+                "orders", staged.orders(), "restartRequired", true);
+    }
+
+    @PostMapping("/restore/cancel")
+    public Map<String, Object> cancelRestore() {
+        restore.cancel();
+        return Map.of("cancelled", true);
     }
 }

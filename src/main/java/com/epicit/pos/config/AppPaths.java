@@ -58,6 +58,20 @@ public record AppPaths(Path dataDir) {
         return "jdbc:h2:file:" + dbBase().toAbsolutePath().toString().replace('\\', '/');
     }
 
+    /** A validated backup waiting to be swapped in at the next start (FR-7.3). */
+    public Path restorePendingDir() {
+        return dataDir.resolve("restore-pending");
+    }
+
+    /** Written by the swap, read once by the next running instance to write the RESTORE audit row. */
+    public Path restoreMarker() {
+        return dataDir.resolve("restore-done.properties");
+    }
+
+    public Path dbFile() {
+        return dataDir.resolve("epicit-pos.mv.db");
+    }
+
     public void ensureDirectories() throws IOException {
         Files.createDirectories(dataDir);
     }

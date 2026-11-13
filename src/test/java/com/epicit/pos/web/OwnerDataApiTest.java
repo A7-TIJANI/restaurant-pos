@@ -34,6 +34,8 @@ class OwnerDataApiTest {
         mvc.perform(get("/api/owner/export.xlsx")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/owner/backups")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/owner/backup")).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/owner/restore").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"x\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -55,5 +57,13 @@ class OwnerDataApiTest {
         mvc.perform(post("/api/owner/backup").session(owner))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.error").value("BACKUP_FAILED"));
+    }
+
+    @Test
+    void restoreRefusesANameThatIsNotInTheBackupFolder() throws Exception {
+        mvc.perform(post("/api/owner/restore").session(owner).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"../../config.properties\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("BACKUP_NOT_FOUND"));
     }
 }
