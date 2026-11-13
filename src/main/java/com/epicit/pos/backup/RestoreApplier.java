@@ -51,7 +51,9 @@ public final class RestoreApplier {
         // stale H2 side files belong to the old database
         try (DirectoryStream<Path> stale = Files.newDirectoryStream(paths.dataDir(), "epicit-pos.*.db")) {
             for (Path p : stale) {
-                Files.deleteIfExists(p);
+                if (!p.equals(live)) {
+                    Files.deleteIfExists(p);
+                }
             }
         }
         Properties marker = new Properties();
