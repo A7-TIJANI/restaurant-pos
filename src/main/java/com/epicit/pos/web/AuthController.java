@@ -1,6 +1,7 @@
 package com.epicit.pos.web;
 
 import com.epicit.pos.service.PinService;
+import com.epicit.pos.service.SettingsService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Instant;
@@ -20,17 +21,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    public record PinRequest(String pin) {
+    public record PinRequest(String pin, String restaurantName) {
     }
 
     private static final DateTimeFormatter HH_MM = DateTimeFormatter.ofPattern("HH:mm");
 
     private final PinService pins;
+    private final SettingsService settings;
     private final OwnerSession ownerSession;
     private final Clock clock;
 
-    public AuthController(PinService pins, OwnerSession ownerSession, Clock clock) {
+    public AuthController(PinService pins, SettingsService settings, OwnerSession ownerSession, Clock clock) {
         this.pins = pins;
+        this.settings = settings;
         this.ownerSession = ownerSession;
         this.clock = clock;
     }
@@ -49,7 +52,13 @@ public class AuthController {
     /** Forced PIN setup: first run, or after a RESET-PIN reset. Rejected once a PIN exists. */
     @PostMapping("/setup")
     public Map<String, Object> setup(@RequestBody PinRequest request, HttpServletRequest http) {
-        pins.setInitialPin(request.pin());
+        if (request.restaurantName() != null) {
+            SettingsService.cleanName(request.restaurantName());   // reject a bad name before the PIN is stored
+        }
+        pins.setInitialPin(request.pin());   // refuses once a PIN exists, so a stranger cannot rename the restaurant
+        if (request.restaurantName() != null) {
+            settings.setRestaurantName(request.restaurantName());   // first-run wizard
+        }
         ownerSession.open(http.getSession(true));
         return Map.of("unlocked", true);
     }
