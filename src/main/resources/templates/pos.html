@@ -6,7 +6,7 @@
     <title th:text="${restaurantName} + ' POS'">Epic IT POS</title>
     <link rel="stylesheet" th:href="@{/css/pos.css}">
 </head>
-<body th:attr="data-restaurant=${restaurantName}">
+<body th:attr="data-restaurant=${restaurantName},data-muted=${soundMuted}">
 
 <div id="toast-stack"></div>
 <div id="modal-root"></div>
@@ -25,6 +25,7 @@
             <div id="clock" class="clock"></div>
             <button type="button" id="reports-btn" class="owner-btn" hidden>Reports</button>
             <button type="button" id="data-btn" class="owner-btn" hidden>Data</button>
+            <button type="button" id="settings-btn" class="owner-btn" hidden>Settings</button>
             <button type="button" id="owner-btn" class="owner-btn">Owner</button>
         </div>
     </div>

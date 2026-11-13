@@ -22,6 +22,21 @@
         return e;
     }
 
+    // FR-1.8: three bundled sounds (no network, NFR-1). A blocked autoplay or missing audio device is never an error.
+    var muted = document.body.getAttribute('data-muted') === 'true';
+    var SOUNDS = {};
+    ['click', 'blocked', 'success'].forEach(function (name) {
+        try { SOUNDS[name] = new Audio('/sounds/' + name + '.wav'); } catch (ignore) { /* no audio support */ }
+    });
+    function sound(name) {
+        if (muted || !SOUNDS[name]) { return; }
+        try {
+            SOUNDS[name].currentTime = 0;
+            var p = SOUNDS[name].play();
+            if (p && p.catch) { p.catch(function () { /* autoplay refused */ }); }
+        } catch (ignore) { /* ignore */ }
+    }
+
     function money(n) { return Number(n).toLocaleString('en-US') + ' RWF'; }
 
     function stamp(when) {
@@ -66,6 +81,7 @@
     async function act(method, url, body) {
         var r = await call(method, url, body);
         if (!r.ok) {
+            sound('blocked');
             toast((r.data && r.data.message) || 'Something went wrong. Please try again.', 'error');
             await refresh();
             return null;
@@ -302,6 +318,7 @@
         root.appendChild(overlay);
         var first = box.querySelector('input, select');
         if (first) { first.focus(); }
+        return box;
     }
 
     function field(label, type, attrs) {
@@ -331,6 +348,7 @@
         document.body.classList.toggle('owner', !!owner.unlocked);
         $('reports-btn').hidden = !owner.unlocked;
         $('data-btn').hidden = !owner.unlocked;
+        $('settings-btn').hidden = !owner.unlocked;
         var banner = $('reset-banner');
         var showBanner = !owner.pinSet && !!owner.resetAt;
         banner.hidden = !showBanner;
@@ -752,9 +770,103 @@
 
     $('reports-btn').addEventListener('click', openReports);
 
+    // ---- settings (FR-8) and first-run wizard ---------------------------------------------------------------
+
+    async function openSettings() {
+        var r = await call('GET', '/api/owner/settings');
+        if (!r.ok) { return; }
+        var cur = r.data;
+        var name = field('Restaurant name (printed on receipts)', 'text', { maxlength: '100' });
+        name.input.value = cur.restaurantName;
+        var low = field('Low-stock warning level (default for new items)', 'number', { min: '0', max: '1000' });
+        low.input.value = cur.lowStockDefault;
+        var folder = field('Backup folder (on this laptop)', 'text');
+        folder.input.value = cur.backupPath;
+        var muteWrap = el('label', 'form-field check-field');
+        var mute = el('input');
+        mute.type = 'checkbox';
+        mute.checked = cur.soundMuted;
+        muteWrap.appendChild(mute);
+        muteWrap.appendChild(el('span', null, 'Mute sound effects'));
+        var pinBtn = el('button', 'modal-btn secondary', 'Change PIN…');
+        pinBtn.type = 'button';
+        pinBtn.addEventListener('click', showChangePin);
+        showForm('Settings', null, [name.wrap, low.wrap, folder.wrap, muteWrap, pinBtn], 'Save', async function () {
+            var res = await call('PUT', '/api/owner/settings', {
+                restaurantName: name.input.value, lowStockDefault: Number(low.input.value),
+                soundMuted: mute.checked, backupPath: folder.input.value
+            });
+            if (!res.ok) { return (res.data && res.data.message) || 'Could not save the settings.'; }
+            muted = res.data.soundMuted;
+            document.body.setAttribute('data-muted', String(muted));
+            if (res.data.restaurantName !== RESTAURANT) {
+                toast('Saved. Reloading to use the new name…', 'success');
+                setTimeout(function () { window.location.reload(); }, 800);
+            } else {
+                toast('Settings saved.', 'success');
+            }
+            return null;
+        });
+    }
+
+    function showChangePin() {
+        var cur = field('Current PIN', 'password', { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' });
+        var next = field('New PIN (4–6 digits)', 'password', { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' });
+        var again = field('Repeat the new PIN', 'password', { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' });
+        showForm('Change PIN', null, [cur.wrap, next.wrap, again.wrap], 'Change PIN', async function () {
+            if (!/^\d{4,6}$/.test(next.input.value)) { return 'The new PIN must be 4 to 6 digits.'; }
+            if (next.input.value !== again.input.value) { return 'The two new PINs do not match.'; }
+            var res = await call('POST', '/api/owner/pin', { currentPin: cur.input.value, newPin: next.input.value });
+            if (!res.ok) { return (res.data && res.data.message) || 'Could not change the PIN.'; }
+            toast('PIN changed.', 'success');
+            return null;
+        });
+    }
+
+    $('settings-btn').addEventListener('click', openSettings);
+
+    // First run: no PIN and no reset in progress. Name + PIN are forced, so there is no Cancel.
+    function showFirstRun() {
+        var name = field('Restaurant name', 'text', { maxlength: '100', autocomplete: 'off' });
+        var pin = field('Owner PIN (4–6 digits)', 'password', { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' });
+        var again = field('Repeat the PIN', 'password', { inputmode: 'numeric', maxlength: '6', autocomplete: 'off' });
+        var box = showForm('Welcome to Epic IT POS', 'Set up your restaurant. The name is printed on every receipt; the PIN protects reports, order changes and settings.',
+            [name.wrap, pin.wrap, again.wrap], 'Start', async function () {
+                if (!name.input.value.trim()) { return 'Please enter the restaurant name.'; }
+                if (!/^\d{4,6}$/.test(pin.input.value)) { return 'The PIN must be 4 to 6 digits.'; }
+                if (pin.input.value !== again.input.value) { return 'The two PINs do not match.'; }
+                var r = await call('POST', '/api/auth/setup', { pin: pin.input.value, restaurantName: name.input.value });
+                if (!r.ok) { return (r.data && r.data.message) || 'Could not finish the setup.'; }
+                window.location.reload();
+                return null;
+            });
+        var cancel = box.querySelector('.modal-btn.secondary');
+        if (cancel) { cancel.hidden = true; }
+        name.input.focus();
+    }
+
     // ---- data: Excel export and backups (FR-5, FR-7) ----------------------------------------------------
 
     function kb(bytes) { return Math.max(1, Math.round(bytes / 1024)).toLocaleString('en-US') + ' KB'; }
+
+    function confirmRestore(b) {
+        showModal('Restore this backup?',
+            'Everything sold after ' + stamp(b.modified) + ' will be missing from the restored data. Your current data is kept ' +
+            'in the data folder as a "before-restore" file, but the POS must be closed and opened again to finish.',
+            [{ label: 'Cancel', kind: 'secondary', onClick: openData },
+             { label: 'Restore', kind: 'danger', onClick: async function () {
+                var r = await call('POST', '/api/owner/restore', { name: b.name });
+                if (!owner.unlocked) { return; }
+                if (!r.ok) {
+                    showModal('Cannot restore', (r.data && r.data.message) || 'The restore failed.', [{ label: 'OK', onClick: openData }]);
+                    return;
+                }
+                showModal('Restore ready',
+                    'Backup of "' + r.data.restaurantName + '" with ' + r.data.orders + ' finished orders is ready. ' +
+                    'Close the POS window and open it again to finish. Nothing has changed yet.',
+                    [{ label: 'OK', onClick: openData }]);
+            } }]);
+    }
 
     function openData() {
         var root = $('modal-root');
@@ -770,6 +882,8 @@
         var backupBtn = el('button', 'modal-btn secondary', 'Back up now');
         backupBtn.type = 'button';
         var folder = el('p', 'data-folder');
+        var pending = el('p', 'restore-pending');
+        pending.hidden = true;
         var list = el('ul', 'backup-list');
         var closeBtn = el('button', 'modal-btn secondary', 'Close');
         closeBtn.type = 'button';
@@ -790,9 +904,27 @@
             list.textContent = '';
             if (!r.ok) { say((r.data && r.data.message) || 'Could not read the backup folder.', true); return; }
             folder.textContent = 'Backup folder: ' + r.data.folder;
+            pending.textContent = '';
+            if (r.data.restorePending) {
+                pending.appendChild(el('span', null, 'A restore is waiting. Close the POS and open it again to apply it. '));
+                var cb = el('button', 'restore-btn', 'Cancel restore');
+                cb.type = 'button';
+                cb.addEventListener('click', async function () {
+                    var c = await call('POST', '/api/owner/restore/cancel');
+                    if (owner.unlocked) { say(c.ok ? 'Restore cancelled.' : 'Could not cancel the restore.', !c.ok); loadList(); }
+                });
+                pending.appendChild(cb);
+            }
+            pending.hidden = !r.data.restorePending;
             if (!r.data.backups.length) { list.appendChild(el('li', 'muted', 'No backups yet.')); return; }
             r.data.backups.forEach(function (b) {
-                list.appendChild(el('li', null, b.name + '  ·  ' + kb(b.sizeBytes) + '  ·  ' + stamp(b.modified)));
+                var li = el('li', 'backup-row');
+                li.appendChild(el('span', null, b.name + '  ·  ' + kb(b.sizeBytes) + '  ·  ' + stamp(b.modified)));
+                var rb = el('button', 'restore-btn', 'Restore');
+                rb.type = 'button';
+                rb.addEventListener('click', function () { confirmRestore(b); });
+                li.appendChild(rb);
+                list.appendChild(li);
             });
         }
 
@@ -838,6 +970,7 @@
         });
 
         box.appendChild(status);
+        box.appendChild(pending);
         box.appendChild(buttons);
         box.appendChild(folder);
         box.appendChild(el('h4', null, 'Backups (newest first, the last 30 are kept)'));
@@ -870,9 +1003,10 @@
     async function finalizeCurrent(orderNumber) {
         var r = await call('POST', '/api/order/finalize/' + orderNumber);
         if (r.ok) {
+            sound('success');
             toast('Order #' + orderNumber + ' finalized.', 'success');
             // Reload so stock levels, low-stock states and the counter strip all come fresh from the database.
-            setTimeout(function () { window.location.reload(); }, 500);
+            setTimeout(function () { window.location.reload(); }, 1200);   // long enough for the chime to be heard
             return true;
         }
         if (r.data && r.data.order) { setOrder(r.data.order); }
@@ -883,6 +1017,7 @@
     async function printFlow() {
         if (printing) { return; }
         if (!order || order.lines.length === 0) {
+            sound('blocked');
             toast('Add at least one item before printing.', 'error');
             return;
         }
@@ -924,6 +1059,7 @@
             if (o) {
                 var line = o.lines.find(function (l) { return l.menuItemId === id; });
                 if (line) { selectedLineId = line.id; render(); }
+                sound('click');
             }
         });
     });
@@ -987,6 +1123,8 @@
     refresh().then(function (o) {
         if (o && (o.status === 'PRINTING_CUSTOMER' || o.status === 'PRINTING_KITCHEN')) { promptResume(); }
     });
-    refreshOwner();
+    refreshOwner().then(function () {
+        if (!owner.pinSet && !owner.resetAt) { showFirstRun(); }
+    });
     loadOrders();
 })();
