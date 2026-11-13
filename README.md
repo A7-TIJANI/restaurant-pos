@@ -4,8 +4,8 @@ Offline-first desktop point-of-sale system for restaurants, rewritten from a sin
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
 > **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4), owner security and order
-> management (week 5), reports (week 6), Excel export and backups (week 7, part 1). Next: restore, first-run
-> wizard, settings, sound.
+> management (week 5), reports (week 6), Excel export, backups, restore, first-run wizard, settings and sound
+> (week 7). Next: menu management UI (FR-6), restore wizard for an unopenable database, packaging.
 
 ## Why v2
 
@@ -63,6 +63,22 @@ backup folder. *Back up now* uses H2's online `BACKUP TO`, repackaged as `epicit
 half-written backup. A silent snapshot runs a few seconds after every start (a failure is only logged). Only the
 newest 30 backups are kept; other files in the folder are never touched. The folder comes from `config.properties`.
 
+## Restore
+
+Owner > Data > *Restore* next to a backup. The zip is unpacked into a staging folder and opened read-only to prove it
+is a real Epic IT POS database that is not newer than this app; nothing live is touched yet. The owner then closes and
+reopens the POS: before the database opens, the chosen file is swapped in and the old database is kept next to it as
+`epicit-pos.mv.db.before-restore-<timestamp>`. The next run writes a `RESTORE` audit row. *Cancel restore* drops a
+staged restore. Only names from the backup list are accepted (no paths). Restoring a backup from before a PIN change
+brings back the old PIN.
+
+## Settings, first run and sound
+
+First launch asks for the restaurant name and owner PIN (no Cancel). Owner > Settings: restaurant name, low-stock
+default, backup folder (saved to `config.properties`, validated writable), mute, change PIN. Changes are audited as
+`SETTINGS_CHANGE`. Three bundled sounds (item added, blocked action, order finalized after the commit) play
+from `/sounds/*.wav`; nothing is fetched from the network.
+
 ## Forgotten PIN
 
 Create an empty file named `RESET-PIN` in the data folder (`%LOCALAPPDATA%\EpicIT POS\`) and restart the app. On
@@ -92,7 +108,7 @@ src/main/java/com/epicit/pos
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
   service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, PinService, AuditService, today's counter/orders
-  backup/    BackupService (zip snapshots + rotation), StartupSnapshot
+  backup/    BackupService (zip snapshots + rotation), StartupSnapshot, RestoreService + RestoreApplier
   web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
