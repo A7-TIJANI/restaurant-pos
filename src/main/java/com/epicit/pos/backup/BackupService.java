@@ -66,6 +66,14 @@ public class BackupService {
         this.version = version;
     }
 
+    /**
+     * NFR-6 recovery mode: the database cannot be opened, so there is no JdbcTemplate. Only {@link #list()} and
+     * {@link #folder()} work on this instance; {@link #backupNow()} needs a live database and must not be called.
+     */
+    public static BackupService forRecovery(AppConfig config, Clock clock) {
+        return new BackupService(null, config, clock, () -> "", "recovery");
+    }
+
     public Path folder() {
         return config.backupPath();
     }

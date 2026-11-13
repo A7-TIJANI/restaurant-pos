@@ -129,4 +129,37 @@ class RestoreTest {
         restore().cancel();
         assertThat(restore().restorePending()).isFalse();
     }
+
+    // ---- recovery mode (NFR-6): no live database to ask -------------------------------------------------------
+
+    private RestoreService recovery() {
+        return RestoreService.forRecovery(paths, BackupService.forRecovery(config, clock));
+    }
+
+    @Test
+    void theAppKnowsHowManyMigrationsItShips() {
+        assertThat(RestoreService.migrationsShippedWithThisApp()).isGreaterThanOrEqualTo(3);
+    }
+
+    @Test
+    void recoveryModeStagesABackupWithoutAnyLiveDatabase() {
+        backups().backupNow();
+        live.execute("SHUTDOWN");   // from here on the "live" database is not used at all
+
+        RestoreService.Staged staged = recovery().stage("epicit-pos-backup-2026-11-12.zip");
+
+        assertThat(staged.restaurantName()).isEqualTo("Old Grill");
+        assertThat(staged.orders()).isEqualTo(2);
+        assertThat(recovery().restorePending()).isTrue();
+    }
+
+    @Test
+    void recoveryModeStillRefusesABackupFromANewerVersion() {
+        JdbcTemplate newer = new JdbcTemplate(new DriverManagerDataSource("jdbc:h2:file:" + dir.resolve("newer/epicit-pos").toAbsolutePath(), "sa", ""));
+        schema(newer, 99, "Future Grill", 1);
+        new BackupService(newer, config, clock, () -> "Future Grill", "99.0.0").backupNow();
+
+        assertThatThrownBy(() -> recovery().stage("epicit-pos-backup-2026-11-12.zip"))
+                .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.getCode()).isEqualTo("BACKUP_TOO_NEW"));
+    }
 }
