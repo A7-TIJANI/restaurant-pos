@@ -2,6 +2,7 @@ package com.epicit.pos;
 
 import com.epicit.pos.backup.RestoreApplier;
 import com.epicit.pos.config.AppPaths;
+import com.epicit.pos.recovery.RecoveryLauncher;
 import com.epicit.pos.startup.BrowserLauncher;
 import com.epicit.pos.startup.SingleInstanceGuard;
 import java.io.IOException;
@@ -46,6 +47,11 @@ public class EpicItPosApplication {
         } catch (IOException e) {
             throw new UncheckedIOException("Could not apply the pending restore. Your data is untouched; delete the "
                     + paths.restorePendingDir() + " folder to start normally.", e);
+        }
+        // NFR-6: opening the database is the integrity check. If it will not open, the restore wizard runs here,
+        // in place of the POS, and the app starts normally only after a backup was restored.
+        if (!RecoveryLauncher.ensureDatabaseUsable(paths, java.time.Clock.system(APP_ZONE), true)) {
+            return;
         }
         System.setProperty(AppPaths.DATA_DIR_PROPERTY, paths.dataDir().toString());
         if (System.getProperty("spring.datasource.url") == null) {
