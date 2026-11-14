@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epic IT POS - Restore</title>
+    <style>
+        :root { --primary: #2c3e50; --success: #27ae60; --danger: #e74c3c; --bg: #f4f7f6; --warning: #f39c12; }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: var(--bg); color: #333; }
+        main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+        h1 { color: var(--primary); margin: 0 0 4px; font-size: 1.6rem; }
+        .alert { background: #fdecea; border-left: 6px solid var(--danger); border-radius: 8px; padding: 14px 16px; margin: 16px 0; }
+        .alert b { color: var(--danger); }
+        .reassure { background: #eafaf1; border-left: 6px solid var(--success); border-radius: 8px; padding: 14px 16px; margin: 16px 0; }
+        .detail { color: #7f8c8d; font-size: 0.8rem; margin-top: 6px; word-break: break-word; }
+        h2 { font-size: 0.95rem; text-transform: uppercase; color: var(--primary); border-bottom: 2px solid #d1d9e0; padding-bottom: 5px; margin: 24px 0 10px; }
+        ul { list-style: none; margin: 0; padding: 0; }
+        .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: white; border: 1px solid #d1d9e0; border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+        .row .meta { font-size: 0.8rem; color: #7f8c8d; }
+        .row.newest { border-color: var(--success); }
+        button { font-family: inherit; font-weight: bold; cursor: pointer; border-radius: 8px; border: 2px solid var(--primary); background: white; color: var(--primary); padding: 10px 16px; font-size: 0.95rem; }
+        button.danger { background: var(--danger); border-color: var(--danger); color: white; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        button:focus-visible { outline: 3px solid #2980b9; outline-offset: 1px; }
+        .muted { color: #7f8c8d; font-style: italic; }
+        #confirm { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); align-items: center; justify-content: center; padding: 16px; }
+        #confirm.open { display: flex; }
+        #confirm .box { background: white; border-radius: 12px; padding: 24px; max-width: 460px; width: 100%; }
+        #confirm .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+        #error { color: var(--danger); font-weight: bold; margin-top: 12px; min-height: 1.2em; }
+        .done { text-align: center; padding: 40px 10px; }
+        .done h1 { color: var(--success); }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body data-token="%%TOKEN%%">
+<main>
+    <section id="wizard">
+        <h1>Epic IT POS cannot open its data</h1>
+        <div class="alert">
+            <b>The POS did not start</b> because its data file is damaged or unreadable. This can happen after a power cut.
+            No sales can be taken until it is fixed.
+            <div class="detail" id="problem"></div>
+        </div>
+        <div class="reassure">
+            <b>Your damaged file is not deleted.</b> If you restore a backup, the damaged file stays in the data folder
+            (named <code>epicit-pos.mv.db.before-restore-&hellip;</code>) so it can still be examined.
+            Sales made after the backup was taken will be missing from the restored data.
+        </div>
+
+        <h2>Pick a backup to restore (newest first)</h2>
+        <p class="detail" id="folder"></p>
+        <ul id="list"></ul>
+        <div id="error" role="alert"></div>
+
+        <h2>Or</h2>
+        <button type="button" id="quit">Close without restoring</button>
+    </section>
+
+    <section id="finished" class="done" hidden>
+        <h1>Restored</h1>
+        <p id="finished-text"></p>
+        <p>The POS is starting. This window can show a message for a few seconds; then the POS opens in a new tab.</p>
+    </section>
+
+    <section id="quit-done" class="done" hidden>
+        <h1>Closed</h1>
+        <p>Nothing was changed. Open Epic IT POS again whenever you are ready to choose a backup.</p>
+    </section>
+</main>
+
+<div id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="box">
+        <h2 id="confirm-title" style="border:0;margin-top:0">Restore this backup?</h2>
+        <p id="confirm-text"></p>
+        <div class="actions">
+            <button type="button" id="confirm-cancel">Cancel</button>
+            <button type="button" class="danger" id="confirm-go">Restore</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    var TOKEN = document.body.getAttribute('data-token');
+    var $ = function (id) { return document.getElementById(id); };
+    var pending = null;
+
+    function kb(bytes) { return Math.max(1, Math.round(bytes / 1024)).toLocaleString('en-US') + ' KB'; }
+    function when(iso) {
+        var d = new Date(iso);
+        return isNaN(d) ? iso : d.toLocaleString('en-GB', { timeZone: 'Africa/Kigali', dateStyle: 'medium', timeStyle: 'short' });
+    }
+    function say(message) { $('error').textContent = message || ''; }
+
+    async function api(method, url, body) {
+        try {
+            var res = await fetch(url, {
+                method: method,
+                headers: method === 'POST' ? { 'Content-Type': 'application/json', 'X-Recovery-Token': TOKEN } : {},
+                body: body ? JSON.stringify(body) : undefined
+            });
+            var data = null;
+            try { data = await res.json(); } catch (ignore) { /* empty */ }
+            return { ok: res.ok, data: data || {} };
+        } catch (e) {
+            return { ok: false, data: { message: 'Cannot reach the recovery service. Close this tab and open Epic IT POS again.' } };
+        }
+    }
+
+    function row(b, newest) {
+        var li = document.createElement('li');
+        li.className = 'row' + (newest ? ' newest' : '');
+        var info = document.createElement('div');
+        var title = document.createElement('div');
+        title.textContent = b.name + (newest ? '  (newest)' : '');
+        var meta = document.createElement('div');
+        meta.className = 'meta';
+        meta.textContent = 'Taken ' + when(b.modified) + '  ·  ' + kb(b.sizeBytes);
+        info.appendChild(title);
+        info.appendChild(meta);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Restore';
+        btn.addEventListener('click', function () { ask(b); });
+        li.appendChild(info);
+        li.appendChild(btn);
+        return li;
+    }
+
+    async function load() {
+        var r = await api('GET', '/api/recovery/status');
+        if (!r.ok) { say(r.data.message || 'Could not read the backups.'); return; }
+        $('problem').textContent = r.data.problem ? 'Technical detail: ' + r.data.problem : '';
+        $('folder').textContent = 'Backup folder: ' + r.data.folder;
+        var list = $('list');
+        list.textContent = '';
+        if (!r.data.backups.length) {
+            var li = document.createElement('li');
+            li.className = 'muted';
+            li.textContent = 'No backups were found in that folder. Ask your developer to help, and do not delete anything in the data folder.';
+            list.appendChild(li);
+            return;
+        }
+        r.data.backups.forEach(function (b, i) { list.appendChild(row(b, i === 0)); });
+    }
+
+    function ask(b) {
+        pending = b;
+        say('');
+        $('confirm-text').textContent = 'Everything sold after ' + when(b.modified) +
+            ' will be missing. The damaged file is kept in the data folder. Continue?';
+        $('confirm').classList.add('open');
+        $('confirm-cancel').focus();
+    }
+
+    $('confirm-cancel').addEventListener('click', function () { $('confirm').classList.remove('open'); pending = null; });
+
+    $('confirm-go').addEventListener('click', async function () {
+        if (!pending) { return; }
+        var b = pending;
+        $('confirm-go').disabled = true;
+        var r = await api('POST', '/api/recovery/restore', { name: b.name });
+        $('confirm-go').disabled = false;
+        $('confirm').classList.remove('open');
+        pending = null;
+        if (!r.ok) { say(r.data.message || 'The restore failed. Nothing was changed.'); return; }
+        $('wizard').hidden = true;
+        $('finished').hidden = false;
+        $('finished-text').textContent = 'Restored "' + r.data.restaurantName + '" with ' + r.data.orders + ' finished orders.';
+    });
+
+    $('quit').addEventListener('click', async function () {
+        await api('POST', '/api/recovery/quit');
+        $('wizard').hidden = true;
+        $('quit-done').hidden = false;
+    });
+
+    load();
+})();
+</script>
+</body>
+</html>
