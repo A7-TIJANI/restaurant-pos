@@ -7,8 +7,14 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.DynamicUpdate;
 
+/**
+ * {@code @DynamicUpdate}: an owner editing the price must not rewrite the stock column with a value read earlier,
+ * while a sale finalizes. Only the columns that actually changed are written.
+ */
 @Entity
+@DynamicUpdate
 @Table(name = "menu_item")
 public class MenuItem {
 
