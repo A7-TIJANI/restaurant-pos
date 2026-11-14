@@ -1,5 +1,5 @@
 // POS screen: cart, add-ons, payment toggle, two-step print flow, crash-resume prompt, owner lock/PIN,
-// today's orders and the owner's edit / void / reprint.
+// today's orders, the owner's edit / void / reprint, and menu management.
 // All business and security rules live on the server (/api/**); this file renders what it is given.
 (function () {
     'use strict';
@@ -347,6 +347,7 @@
         btn.classList.toggle('unlocked', !!owner.unlocked);
         document.body.classList.toggle('owner', !!owner.unlocked);
         $('reports-btn').hidden = !owner.unlocked;
+        $('menu-btn').hidden = !owner.unlocked;
         $('data-btn').hidden = !owner.unlocked;
         $('settings-btn').hidden = !owner.unlocked;
         var banner = $('reset-banner');
@@ -984,6 +985,218 @@
     }
 
     $('data-btn').addEventListener('click', openData);
+
+    // ---- menu & inventory management (FR-6) ------------------------------------------------------------------
+
+    var menuDirty = false;   // something changed: the POS grid (rendered by the server) must be reloaded when this closes
+
+    // Same as showForm, but both Save and Cancel come back to the menu screen instead of leaving the owner on the POS.
+    function menuForm(title, intro, nodes, submitLabel, onSubmit) {
+        var box = showForm(title, intro, nodes, submitLabel, async function () {
+            var message = await onSubmit();
+            if (!message) { setTimeout(openMenu, 0); }
+            return message;
+        });
+        var cancel = box.querySelector('.modal-btn.secondary');
+        if (cancel) { cancel.addEventListener('click', function () { setTimeout(openMenu, 0); }); }
+        return box;
+    }
+
+    // Swatches from the server's palette. selected = null means "automatic" (the server picks the next unused colour).
+    function colorPicker(palette, selected, label) {
+        var wrap = el('div', 'form-field');
+        wrap.appendChild(el('span', null, label));
+        var row = el('div', 'swatch-row');
+        var chosen = selected;
+        var buttons = [];
+        palette.forEach(function (c) {
+            var b = el('button', 'swatch' + (c === chosen ? ' on' : ''));
+            b.type = 'button';
+            b.style.backgroundColor = c;
+            b.setAttribute('aria-label', 'Colour ' + c);
+            b.addEventListener('click', function () {
+                chosen = (chosen === c && selected === null) ? null : c;   // tapping the chosen swatch again = back to automatic
+                buttons.forEach(function (x, i) { x.classList.toggle('on', palette[i] === chosen); });
+            });
+            buttons.push(b);
+            row.appendChild(b);
+        });
+        wrap.appendChild(row);
+        return { wrap: wrap, value: function () { return chosen; } };
+    }
+
+    function toWholeNumber(text) {
+        var t = String(text).trim();
+        return /^-?\d+$/.test(t) ? Number(t) : NaN;
+    }
+
+    // One server call for a menu change; shows the server's message on failure and always redraws the screen.
+    async function menuAction(method, url, body, done) {
+        var r = await call(method, url, body);
+        if (r.ok) {
+            menuDirty = true;
+            sound('success');
+            toast(done, 'success');
+        } else if (owner.unlocked) {
+            sound('blocked');
+            toast((r.data && r.data.message) || 'That change could not be saved.', 'error');
+        }
+        openMenu();
+    }
+
+    function confirmActive(what, name, makeActive, url) {
+        showModal(makeActive ? 'Bring back ' + name + '?' : 'Deactivate ' + name + '?',
+            makeActive
+                ? name + ' will appear again on the POS ' + what + '.'
+                : name + ' will disappear from the POS ' + what + '. Past orders and reports keep it, and you can bring it back here at any time.',
+            [{ label: 'Cancel', kind: 'secondary', onClick: openMenu },
+             { label: makeActive ? 'Bring back' : 'Deactivate', kind: makeActive ? 'primary' : 'danger', onClick: function () {
+                menuAction('POST', url, { active: makeActive }, name + (makeActive ? ' is back on the ' : ' removed from the ') + 'POS.');
+             } }]);
+    }
+
+    function itemForm(menu, item) {
+        var name = field('Name', 'text', { maxlength: '100', autocomplete: 'off' });
+        var price = field('Price (RWF)', 'number', { min: '1', step: '1' });
+        var stock = item ? null : field('Stock to start with', 'number', { min: '0', step: '1' });
+        var low = field('Low-stock warning at or below', 'number', { min: '0', max: '1000', step: '1' });
+        var picker = colorPicker(menu.palette, item ? item.color : null,
+            item ? 'Colour' : 'Colour (automatic unless you pick one)');
+        name.input.value = item ? item.name : '';
+        price.input.value = item ? item.price : '';
+        low.input.value = item ? item.lowStockThreshold : menu.lowStockDefault;
+        if (stock) { stock.input.value = '0'; }
+        var nodes = [name.wrap, price.wrap];
+        if (stock) { nodes.push(stock.wrap); }
+        nodes.push(low.wrap, picker.wrap);
+        menuForm(item ? 'Edit ' + item.name : 'Add menu item', null, nodes, item ? 'Save' : 'Add item', async function () {
+            var p = toWholeNumber(price.input.value);
+            var t = toWholeNumber(low.input.value);
+            if (!name.input.value.trim()) { return 'Please enter a name.'; }
+            if (!(p > 0)) { return 'The price must be a whole number of RWF above 0.'; }
+            if (isNaN(t) || t < 0) { return 'The low-stock level must be 0 or more.'; }
+            var body = { name: name.input.value, price: p, lowStockThreshold: t, color: picker.value() };
+            if (stock) {
+                var s = toWholeNumber(stock.input.value);
+                if (isNaN(s) || s < 0) { return 'The starting stock must be 0 or more.'; }
+                body.stock = s;
+            }
+            var res = await call(item ? 'PUT' : 'POST', '/api/owner/menu/items' + (item ? '/' + item.id : ''), body);
+            if (!res.ok) { return (res.data && res.data.message) || 'Could not save the item.'; }
+            menuDirty = true;
+            toast(item ? 'Saved ' + res.data.name + '.' : 'Added ' + res.data.name + ' to the menu.', 'success');
+            return null;
+        });
+    }
+
+    function restockForm(item) {
+        var qty = field('How many to add? (use a minus sign to remove, e.g. -3)', 'number', { step: '1' });
+        menuForm('Restock ' + item.name, item.stock + ' in stock now.', [qty.wrap], 'Update stock', async function () {
+            var d = toWholeNumber(qty.input.value);
+            if (isNaN(d) || d === 0) { return 'Enter a whole number other than 0.'; }
+            var res = await call('POST', '/api/owner/menu/items/' + item.id + '/restock', { delta: d });
+            if (!res.ok) { return (res.data && res.data.message) || 'Could not update the stock.'; }
+            menuDirty = true;
+            toast(item.name + ': ' + res.data.stock + ' in stock.', 'success');
+            return null;
+        });
+    }
+
+    function addonForm() {
+        var name = field('Add-on name (e.g. Garlic)', 'text', { maxlength: '100', autocomplete: 'off' });
+        menuForm('Add an add-on', null, [name.wrap], 'Add', async function () {
+            if (!name.input.value.trim()) { return 'Please enter a name.'; }
+            var res = await call('POST', '/api/owner/menu/addons', { name: name.input.value });
+            if (!res.ok) { return (res.data && res.data.message) || 'Could not add the add-on.'; }
+            menuDirty = true;
+            toast('Added ' + res.data.name + '.', 'success');
+            return null;
+        });
+    }
+
+    function menuRowButton(label, kind, onClick) {
+        var b = el('button', 'o-btn' + (kind ? ' ' + kind : ''), label);
+        b.type = 'button';
+        b.addEventListener('click', onClick);
+        return b;
+    }
+
+    async function openMenu() {
+        var r = await call('GET', '/api/owner/menu');
+        if (!r.ok || !owner.unlocked) {
+            closeModal();
+            if (menuDirty) { window.location.reload(); }
+            return;
+        }
+        var menu = r.data;
+        var root = $('modal-root');
+        root.textContent = '';
+        var overlay = el('div', 'modal-overlay');
+        var box = el('div', 'modal-box wide');
+        box.setAttribute('role', 'dialog');
+        box.appendChild(el('h3', null, 'Menu & stock'));
+
+        var top = el('div', 'modal-actions menu-top');
+        var addBtn = el('button', 'modal-btn primary', 'Add menu item');
+        addBtn.type = 'button';
+        addBtn.addEventListener('click', function () { itemForm(menu, null); });
+        top.appendChild(addBtn);
+        box.appendChild(top);
+
+        var list = el('div', 'menu-admin');
+        if (!menu.items.length) { list.appendChild(el('p', 'muted', 'No menu items yet.')); }
+        menu.items.forEach(function (it) {
+            var row = el('div', 'menu-row' + (it.active ? '' : ' off'));
+            var dot = el('span', 'menu-dot');
+            dot.style.backgroundColor = it.color;
+            row.appendChild(dot);
+            var info = el('div', 'menu-info');
+            info.appendChild(el('b', null, it.name));
+            info.appendChild(el('span', 'menu-sub', money(it.price) + '  ·  ' + it.stock + ' in stock  ·  warn at ' + it.lowStockThreshold));
+            row.appendChild(info);
+            if (!it.active) { row.appendChild(el('span', 'badge off', 'Hidden')); }
+            else if (it.outOfStock) { row.appendChild(el('span', 'badge out', 'Out of stock')); }
+            else if (it.lowStock) { row.appendChild(el('span', 'badge low', 'Low stock')); }
+            var actions = el('div', 'menu-actions');
+            actions.appendChild(menuRowButton('Edit', '', function () { itemForm(menu, it); }));
+            actions.appendChild(menuRowButton('Restock', '', function () { restockForm(it); }));
+            actions.appendChild(it.active
+                ? menuRowButton('Deactivate', 'void', function () { confirmActive('menu', it.name, false, '/api/owner/menu/items/' + it.id + '/active'); })
+                : menuRowButton('Bring back', '', function () { confirmActive('menu', it.name, true, '/api/owner/menu/items/' + it.id + '/active'); }));
+            row.appendChild(actions);
+            list.appendChild(row);
+        });
+        box.appendChild(list);
+
+        box.appendChild(el('h4', null, 'Quick add-ons'));
+        var chips = el('div', 'addon-admin');
+        menu.addons.forEach(function (a) {
+            var chip = el('span', 'addon-chip' + (a.active ? '' : ' off'));
+            chip.appendChild(el('span', null, a.name));
+            chip.appendChild(menuRowButton(a.active ? 'Deactivate' : 'Bring back', a.active ? 'void' : '', function () {
+                confirmActive('add-on bar', a.name, !a.active, '/api/owner/menu/addons/' + a.id + '/active');
+            }));
+            chips.appendChild(chip);
+        });
+        box.appendChild(chips);
+        var addAddon = el('button', 'modal-btn secondary', 'Add an add-on');
+        addAddon.type = 'button';
+        addAddon.addEventListener('click', addonForm);
+        box.appendChild(addAddon);
+
+        var actions = el('div', 'modal-actions');
+        var close = el('button', 'modal-btn secondary', 'Close');
+        close.type = 'button';
+        close.addEventListener('click', function () {
+            if (menuDirty) { window.location.reload(); } else { closeModal(); }
+        });
+        actions.appendChild(close);
+        box.appendChild(actions);
+        overlay.appendChild(box);
+        root.appendChild(overlay);
+    }
+
+    $('menu-btn').addEventListener('click', openMenu);
 
     // ---- the two-step print sequence (FR-2) ------------------------------------------------------------
 

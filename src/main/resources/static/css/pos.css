@@ -330,3 +330,25 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .restore-pending { background: #fff3cd; border: 1px solid #e0c36a; border-radius: 6px; padding: .5rem .75rem; margin: 0 0 .75rem; }
 .check-field { display: flex; align-items: center; gap: .5rem; }
 .check-field input { width: auto; }
+
+/* ---- Menu management (FR-6) ---- */
+.menu-top { margin-bottom: 12px; }
+.menu-admin { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.menu-row { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #d1d9e0; border-radius: 8px; padding: 8px 10px; flex-wrap: wrap; }
+.menu-row.off { opacity: .6; background: #f4f7f6; }
+.menu-dot { width: 22px; height: 22px; border-radius: 50%; flex: none; border: 2px solid rgba(0, 0, 0, .15); }
+.menu-info { display: flex; flex-direction: column; flex: 1; min-width: 150px; }
+.menu-sub { color: #7f8c8d; font-size: .8rem; }
+.menu-actions { display: flex; gap: 6px; margin-left: auto; }
+.badge.low { background: var(--danger); }
+.badge.out { background: #34495e; }
+.badge.off { background: #95a5a6; }
+.addon-admin { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.addon-chip { display: inline-flex; align-items: center; gap: 8px; background: #ecf0f1; border: 1px solid #bdc3c7; border-radius: 20px; padding: 4px 6px 4px 12px; font-size: .85rem; font-weight: bold; }
+.addon-chip.off { opacity: .55; text-decoration: line-through; }
+.addon-chip.off .o-btn { text-decoration: none; }
+.swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; box-shadow: 0 0 0 1px rgba(0, 0, 0, .25); }
+.swatch.on { border-color: #fff; box-shadow: 0 0 0 3px var(--primary); }
+.swatch:focus-visible { outline: 3px solid #2980b9; outline-offset: 2px; }
+.muted { color: #7f8c8d; }
