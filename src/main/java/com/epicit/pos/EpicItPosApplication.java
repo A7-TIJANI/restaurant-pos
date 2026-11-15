@@ -54,6 +54,10 @@ public class EpicItPosApplication {
             return;
         }
         System.setProperty(AppPaths.DATA_DIR_PROPERTY, paths.dataDir().toString());
+        // No console in the packaged app: log to a file in the data folder (rolled by size, see application.properties)
+        if (System.getProperty("logging.file.name") == null) {
+            System.setProperty("logging.file.name", paths.dataDir().resolve("logs").resolve("epicit-pos.log").toString());
+        }
         if (System.getProperty("spring.datasource.url") == null) {
             System.setProperty("spring.datasource.url", paths.jdbcUrl());
         }
