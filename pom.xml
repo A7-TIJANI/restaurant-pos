@@ -66,6 +66,8 @@
     </dependencies>
 
     <build>
+        <!-- A predictable jar name: target/epicit-pos.jar (used by packaging/build-app-image.ps1) -->
+        <finalName>epicit-pos</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

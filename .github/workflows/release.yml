@@ -1,0 +1,53 @@
+name: Release
+
+# Builds the portable Windows app-image (jpackage cannot cross-compile, so this runs on Windows).
+#   - push a tag such as v2.0.0 : build, test, package, smoke-test the real .exe, publish a GitHub release
+#   - Run workflow (manual)      : same, without a release; download the zip from the run's Artifacts
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-app-image:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build and test
+        run: mvn -B verify
+
+      - name: Package the app-image
+        id: package
+        shell: pwsh
+        run: ./packaging/build-app-image.ps1 -Version "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '2.0.0' }}" -SkipMaven
+
+      - name: Smoke-test the packaged exe
+        shell: pwsh
+        run: ./packaging/smoke-test.ps1 -AppDir "${{ steps.package.outputs.appdir }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: epicit-pos-windows-x64
+          path: ${{ steps.package.outputs.zip }}
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $flags = @()
+          if ("${{ github.ref_name }}" -match '-') { $flags += "--prerelease" }
+          gh release create "${{ github.ref_name }}" "${{ steps.package.outputs.zip }}" --title "Epic IT POS ${{ github.ref_name }}" --generate-notes @flags
