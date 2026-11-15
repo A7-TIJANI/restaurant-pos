@@ -6,10 +6,14 @@ import com.epicit.pos.service.BusinessException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
+import java.util.function.IntSupplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import org.slf4j.Logger;
@@ -17,6 +21,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -35,17 +41,33 @@ public class RestoreService {
     public record Staged(String backup, String restaurantName, long orders) {
     }
 
+    private static final Pattern MIGRATION_FILE = Pattern.compile("V(\\d+)__.*\\.sql");
+
     private final AppPaths paths;
     private final BackupService backups;
-    private final JdbcTemplate live;
     private final AuditService audit;
+    /** Highest schema version this app understands; a backup newer than this is refused (BACKUP_TOO_NEW). */
+    private final IntSupplier currentSchemaVersion;
 
     @Autowired
     public RestoreService(AppPaths paths, BackupService backups, JdbcTemplate live, AuditService audit) {
+        this(paths, backups, audit, () -> maxMigration(live));
+    }
+
+    private RestoreService(AppPaths paths, BackupService backups, AuditService audit, IntSupplier currentSchemaVersion) {
         this.paths = paths;
         this.backups = backups;
-        this.live = live;
         this.audit = audit;
+        this.currentSchemaVersion = currentSchemaVersion;
+    }
+
+    /**
+     * NFR-6 recovery mode: the live database is broken, so "how new is this app's schema" comes from the Flyway
+     * scripts shipped inside the app instead of from the database. Audit is not available either; the RESTORE
+     * row is written by the next normal start (see {@link #auditCompletedRestore()}).
+     */
+    public static RestoreService forRecovery(AppPaths paths, BackupService backups) {
+        return new RestoreService(paths, backups, (AuditService) null, RestoreService::migrationsShippedWithThisApp);
     }
 
     public synchronized Staged stage(String backupName) {
@@ -128,8 +150,8 @@ public class RestoreService {
             JdbcTemplate copy = new JdbcTemplate(new DriverManagerDataSource(
                     "jdbc:h2:file:" + base + ";IFEXISTS=TRUE;ACCESS_MODE_DATA=r", "sa", ""));
             int theirs = maxMigration(copy);
-            int ours = maxMigration(live);
-            if (theirs > ours) {
+            int ours = currentSchemaVersion.getAsInt();
+            if (ours > 0 && theirs > ours) {
                 throw new BusinessException(HttpStatus.UNPROCESSABLE_ENTITY, "BACKUP_TOO_NEW",
                         "This backup was made by a newer version of the app. Update the app first.");
             }
@@ -138,6 +160,22 @@ public class RestoreService {
             return new Staged(backupName, name, orders == null ? 0 : orders);
         } catch (org.springframework.dao.DataAccessException e) {
             throw new IOException("backup database is not readable: " + e.getMessage(), e);
+        }
+    }
+
+    /** Highest {@code V<n>__*.sql} on the classpath, i.e. the schema version Flyway will bring a database to. */
+    static int migrationsShippedWithThisApp() {
+        try {
+            int max = 0;
+            for (Resource r : new PathMatchingResourcePatternResolver().getResources("classpath*:db/migration/V*__*.sql")) {
+                Matcher m = MIGRATION_FILE.matcher(String.valueOf(r.getFilename()));
+                if (m.matches()) {
+                    max = Math.max(max, Integer.parseInt(m.group(1)));
+                }
+            }
+            return max;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

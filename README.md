@@ -4,8 +4,8 @@ Offline-first desktop point-of-sale system for restaurants, rewritten from a sin
 (v1) onto a real SQL database. Zero-install on Windows: one folder, double-click the `.exe`.
 
 > **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4), owner security and order
-> management (week 5), reports (week 6), Excel export, backups, restore, first-run wizard, settings and sound
-> (week 7). Next: menu management UI (FR-6), restore wizard for an unopenable database, packaging.
+> management (week 5), reports (week 6), Excel export, backups, restore, first-run wizard, settings, sound, the
+> restore wizard for an unopenable database and menu management (week 7). Next: packaging and the field test (week 8).
 
 ## Why v2
 
@@ -72,6 +72,30 @@ reopens the POS: before the database opens, the chosen file is swapped in and th
 staged restore. Only names from the backup list are accepted (no paths). Restoring a backup from before a PIN change
 brings back the old PIN.
 
+## Restore wizard (database will not open)
+
+Opening the database *is* the integrity check (NFR-6). After single-instance check and any pending restore, `main()`
+probes the H2 file with plain JDBC **before Spring starts** (`recovery/DatabaseHealth`): `OK`, `LOCKED` (another process
+holds it: your data is fine, the app tells you to close the other copy and offers no restore) or `BROKEN` (H2 refused it,
+or the file is zero bytes, which H2 would otherwise treat as a brand-new empty database). On `BROKEN` the POS is not
+served. A tiny stand-alone server (JDK `HttpServer`, no Spring, no database) opens the **restore wizard** in the browser:
+it lists the backups newest first, asks for confirmation, and uses the same validate-and-swap code as Owner > Data >
+Restore. The broken file is kept as `epicit-pos.mv.db.before-restore-<timestamp>`; nothing is deleted. The database is
+probed again after the swap, so the app never starts on a file that still will not open. No PIN is asked (the PIN lives
+in the broken database): the control is physical access to the laptop, as for the PIN reset. The wizard listens on
+loopback only, checks the `Host` header, needs a per-run token on every POST and loads no external asset. The next normal
+start writes the `RESTORE` audit row. "Close without restoring" leaves everything untouched.
+
+## Menu and stock management
+
+Owner > Menu. Add and edit items (name, price, low-stock level, colour), **restock** (add stock, or remove it with a minus
+sign; never below zero; applied as one atomic `UPDATE` so it cannot overwrite a sale finalizing at the same moment) and
+**deactivate / bring back** items and add-ons. Nothing is ever deleted: deactivated items leave the POS grid but stay
+referenced by past orders and reports. New items take the **next unused colour** of v1's 13-colour palette among *active*
+items (a deactivated item frees its colour), never `menu.length % N`. A price change writes a `PRICE_CHANGE` audit row,
+any other change a `MENU_CHANGE` row, in the same transaction; past orders keep the price they were sold at. Names must be
+unique among active items and add-ons (case-insensitive).
+
 ## Settings, first run and sound
 
 First launch asks for the restaurant name and owner PIN (no Cancel). Owner > Settings: restaurant name, low-stock
@@ -107,8 +131,9 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, PinService, AuditService, today's counter/orders
+  service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, MenuManagementService, PinService, AuditService, today's counter/orders
   backup/    BackupService (zip snapshots + rotation), StartupSnapshot, RestoreService + RestoreApplier
+  recovery/  DatabaseHealth (open-the-file probe), RecoveryServer (restore wizard), SnapshotRecovery, RecoveryLauncher
   web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
