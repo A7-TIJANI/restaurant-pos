@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * The packaged app has no window and no console, so closing the browser tab does not stop it, and a second
@@ -26,6 +27,7 @@ public class AppShutdown {
     private final Runnable exitAction;
     private final long delayMillis;
 
+    @Autowired
     public AppShutdown(ConfigurableApplicationContext context) {
         this(() -> System.exit(SpringApplication.exit(context)), DEFAULT_DELAY_MILLIS);
     }
