@@ -96,6 +96,15 @@ items (a deactivated item frees its colour), never `menu.length % N`. A price ch
 any other change a `MENU_CHANGE` row, in the same transaction; past orders keep the price they were sold at. Names must be
 unique among active items and add-ons (case-insensitive).
 
+## Packaging (portable Windows app)
+The release is a zip with a folder containing `Epic it POS.exe`, the app and a bundled Java 21 runtime (jpackage `--type app-image`: no installer, no admin rights). jpackage cannot cross-compile, so it is built on Windows by `.github/workflows/release.yml`:
+
+- Actions > **Release** > Run workflow (zip appears under the run's Artifacts), or push a tag `v2.0.0` (also creates a GitHub release).
+- The workflow runs `mvn verify`, `packaging/build-app-image.ps1`, then `packaging/smoke-test.ps1`, which boots the real exe, checks `/ping` and the POS page, closes it via the owner endpoint and checks it exits cleanly.
+- Locally on Windows with JDK 21: `.\packaging\build-app-image.ps1 -Version 2.0.0`.
+- The exe is unsigned, so SmartScreen warns once; see `packaging/README-FIRST.txt` and `docs/user-manual.md`.
+- The app has no console: logs go to `<data dir>\logs\epicit-pos.log`; start-up times to `startup-times.log`. See `docs/field-test-guide.md`.
+
 ## Settings, first run and sound
 
 First launch asks for the restaurant name and owner PIN (no Cancel). Owner > Settings: restaurant name, low-stock

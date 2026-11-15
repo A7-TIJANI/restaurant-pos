@@ -348,6 +348,7 @@
         document.body.classList.toggle('owner', !!owner.unlocked);
         $('reports-btn').hidden = !owner.unlocked;
         $('menu-btn').hidden = !owner.unlocked;
+        $('close-app-btn').hidden = !owner.unlocked;
         $('data-btn').hidden = !owner.unlocked;
         $('settings-btn').hidden = !owner.unlocked;
         var banner = $('reset-banner');
@@ -853,7 +854,7 @@
     function confirmRestore(b) {
         showModal('Restore this backup?',
             'Everything sold after ' + stamp(b.modified) + ' will be missing from the restored data. Your current data is kept ' +
-            'in the data folder as a "before-restore" file, but the POS must be closed and opened again to finish.',
+            'in the data folder as a "before-restore" file. To finish, the POS must be closed (the "Close POS" button) and opened again.',
             [{ label: 'Cancel', kind: 'secondary', onClick: openData },
              { label: 'Restore', kind: 'danger', onClick: async function () {
                 var r = await call('POST', '/api/owner/restore', { name: b.name });
@@ -864,8 +865,9 @@
                 }
                 showModal('Restore ready',
                     'Backup of "' + r.data.restaurantName + '" with ' + r.data.orders + ' finished orders is ready. ' +
-                    'Close the POS window and open it again to finish. Nothing has changed yet.',
-                    [{ label: 'OK', onClick: openData }]);
+                    'Close the POS now, then double-click Epic it POS to open it again and finish. Nothing has changed yet.',
+                    [{ label: 'Later', kind: 'secondary', onClick: openData },
+                     { label: 'Close POS now', kind: 'danger', onClick: closeApp }]);
             } }]);
     }
 
@@ -907,7 +909,7 @@
             folder.textContent = 'Backup folder: ' + r.data.folder;
             pending.textContent = '';
             if (r.data.restorePending) {
-                pending.appendChild(el('span', null, 'A restore is waiting. Close the POS and open it again to apply it. '));
+                pending.appendChild(el('span', null, 'A restore is waiting. Use "Close POS", then open Epic it POS again to apply it. '));
                 var cb = el('button', 'restore-btn', 'Cancel restore');
                 cb.type = 'button';
                 cb.addEventListener('click', async function () {
@@ -985,6 +987,29 @@
     }
 
     $('data-btn').addEventListener('click', openData);
+
+    // ---- closing the app (the packaged app has no window to close) -------------------------------------------
+
+    function showClosedScreen() {
+        // an overlay, not a wiped page: the clock and refresh timers still tick and must find their elements
+        var screen = el('div', 'closed-screen');
+        screen.appendChild(el('h1', null, 'Epic IT POS is closed'));
+        screen.appendChild(el('p', null, 'You can close this browser tab. To open the POS again, double-click Epic it POS.'));
+        document.body.appendChild(screen);
+    }
+
+    function closeApp() {
+        showModal('Close Epic IT POS?',
+            'Nobody can take orders until it is opened again (double-click Epic it POS). Close it at the end of the day, or to finish a restore.',
+            [{ label: 'Cancel', kind: 'secondary', onClick: function () { } },
+             { label: 'Close POS', kind: 'danger', onClick: async function () {
+                var r = await call('POST', '/api/owner/app/close');
+                if (r.ok) { showClosedScreen(); }
+                else if (owner.unlocked) { toast((r.data && r.data.message) || 'Could not close the POS.', 'error'); }
+             } }]);
+    }
+
+    $('close-app-btn').addEventListener('click', closeApp);
 
     // ---- menu & inventory management (FR-6) ------------------------------------------------------------------
 
