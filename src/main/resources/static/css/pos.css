@@ -352,3 +352,8 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .swatch.on { border-color: #fff; box-shadow: 0 0 0 3px var(--primary); }
 .swatch:focus-visible { outline: 3px solid #2980b9; outline-offset: 2px; }
 .muted { color: #7f8c8d; }
+
+/* ---- Closed screen (packaged app has no window to close) ---- */
+.closed-screen { position: fixed; inset: 0; z-index: 500; background: var(--primary); color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+.closed-screen h1 { margin: 0 0 12px; }
+.closed-screen p { font-size: 1.1rem; max-width: 460px; }
