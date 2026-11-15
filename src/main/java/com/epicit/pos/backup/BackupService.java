@@ -58,7 +58,7 @@ public class BackupService {
                 () -> settings.findById(Settings.SINGLETON_ID).map(Settings::getRestaurantName).orElse(""), version);
     }
 
-    BackupService(JdbcTemplate jdbc, AppConfig config, Clock clock, Supplier<String> restaurantName, String version) {
+    public BackupService(JdbcTemplate jdbc, AppConfig config, Clock clock, Supplier<String> restaurantName, String version) {
         this.jdbc = jdbc;
         this.config = config;
         this.clock = clock;
