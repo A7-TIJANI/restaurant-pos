@@ -278,6 +278,43 @@ class OwnerMenuApiTest {
         postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"delta\":50}").andExpect(jsonPath("$.lowStock").value(false)).andExpect(jsonPath("$.stock").value(55));
     }
 
+    @Test
+    void setToAnExactNumberReplacesTheStockAndIsAudited() throws Exception {
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"setTo\":37}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.stock").value(37));
+
+        assertThat(stockOf(meat.getId())).isEqualTo(37);
+        assertThat(jdbc.queryForObject("SELECT old_value FROM audit_log WHERE action = 'MENU_CHANGE'", String.class)).isEqualTo("stock=100");
+        assertThat(jdbc.queryForObject("SELECT new_value FROM audit_log WHERE action = 'MENU_CHANGE'", String.class)).isEqualTo("stock=37");
+    }
+
+    @Test
+    void setToZeroIsAllowedAndMarksTheItemOutOfStock() throws Exception {
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"setTo\":0}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.stock").value(0)).andExpect(jsonPath("$.outOfStock").value(true));
+    }
+
+    @Test
+    void setToRejectsNegativeAbsurdAndAmbiguousRequests() throws Exception {
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"setTo\":-1}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("BAD_STOCK"));
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"setTo\":1000001}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("BAD_STOCK"));
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"delta\":5,\"setTo\":10}")
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("BAD_QUANTITY"));
+        postJson("/api/owner/menu/items/999999/restock", "{\"setTo\":5}").andExpect(status().isNotFound());
+
+        assertThat(stockOf(meat.getId())).isEqualTo(100);
+        assertThat(count("MENU_CHANGE")).isZero();
+    }
+
+    @Test
+    void settingTheSameNumberChangesNothingAndWritesNoAuditRow() throws Exception {
+        postJson("/api/owner/menu/items/" + meat.getId() + "/restock", "{\"setTo\":100}").andExpect(status().isOk());
+
+        assertThat(count("MENU_CHANGE")).isZero();
+    }
+
     // ---- deactivate / reactivate (FR-6.1) -----------------------------------------------------------------------
 
     @Test

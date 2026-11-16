@@ -24,4 +24,9 @@ public interface MenuItemRepository extends JpaRepository<MenuItem, Long> {
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("update MenuItem m set m.stock = m.stock + :delta where m.id = :id and m.stock + :delta >= 0")
     int adjustStock(@Param("id") Long id, @Param("delta") int delta);
+
+    /** Set stock to an exact counted number (FR-6.3 "set to"). Also one UPDATE, so it cannot clobber other columns. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("update MenuItem m set m.stock = :stock where m.id = :id")
+    int setStock(@Param("id") Long id, @Param("stock") int stock);
 }
