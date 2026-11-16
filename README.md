@@ -5,7 +5,9 @@ Offline-first desktop point-of-sale system for restaurants, rewritten from a sin
 
 > **Status:** early development. Done: foundations (weeks 1-2), order flow (weeks 3-4), owner security and order
 > management (week 5), reports (week 6), Excel export, backups, restore, first-run wizard, settings, sound, the
-> restore wizard for an unopenable database and menu management (week 7). Next: packaging and the field test (week 8).
+> restore wizard for an unopenable database and menu management (week 7). Feature-complete for v2.0.0: also the cashier
+> **Stock & sales today** panel, the add-on line merge fix and the **set stock to an exact number** mode. Next: tagging
+> `v2.0.0` and the field test on the owner's laptop (week 8).
 
 ## Why v2
 
@@ -54,6 +56,18 @@ excluded and shown as a separate note on the Today report. Rows are bucketed in 
 months still appear as zero rows. Print uses a stacked 72mm layout. Cashiers see only the Top-5 best sellers by
 quantity on the POS screen, never revenue per item.
 
+## Cashier: Stock & sales today
+
+The POS screen shows today's counter strip (orders, total, Cash, MoMo) and, below Today's Orders, a **Stock & sales
+today** panel: every active menu item with how many were **sold today** and how many are **left**, out-of-stock items
+first, then low stock, then A-Z. It is read-only and needs no PIN (`GET /api/stock/today`), and it carries **quantities
+only**: the response has no price or revenue field, so item revenue stays owner-only. Only finalized orders count, so a
+void removes the sale and puts the stock back. Restocking stays an owner action.
+
+Tapping a menu item increments that item's plain line (no add-ons); once a line has add-ons, the next tap starts a new
+plain line, so "Kofta + Onion" and a plain "Kofta" never merge. Stock is checked against the item's total across all of
+its lines.
+
 ## Excel export and backups
 
 Owner-only **Data** button. *Export to Excel* downloads `EpicIT-Report-YYYY-MM-DD.xlsx` (sheets: Summary, Today,
@@ -88,8 +102,10 @@ start writes the `RESTORE` audit row. "Close without restoring" leaves everythin
 
 ## Menu and stock management
 
-Owner > Menu. Add and edit items (name, price, low-stock level, colour), **restock** (add stock, or remove it with a minus
-sign; never below zero; applied as one atomic `UPDATE` so it cannot overwrite a sale finalizing at the same moment) and
+Owner > Menu. Add and edit items (name, price, low-stock level, colour), **restock** in two modes (*Add or remove some*: a
+change, never below zero; or *Set to an exact number*: the counted stock, 0 or more, for a physical count and the
+day-one cutover; both are one atomic `UPDATE` so they cannot overwrite a sale finalizing at the same moment, and both
+write an audit row with the old and new stock) and
 **deactivate / bring back** items and add-ons. Nothing is ever deleted: deactivated items leave the POS grid but stay
 referenced by past orders and reports. New items take the **next unused colour** of v1's 13-colour palette among *active*
 items (a deactivated item frees its colour), never `menu.length % N`. A price change writes a `PRICE_CHANGE` audit row,
@@ -140,10 +156,10 @@ src/main/java/com/epicit/pos
   startup/   single-instance guard, port file, browser launcher
   domain/    JPA entities (menu_item, addon, orders, order_line, order_line_addon, audit_log, settings)
   repo/      Spring Data repositories
-  service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, MenuManagementService, PinService, AuditService, today's counter/orders
+  service/   OrderService (order flow), OwnerOrderService, ReportService, ExcelExportService, MenuManagementService, PinService, AuditService, today's counter/orders, StockTodayService (cashier stock panel)
   backup/    BackupService (zip snapshots + rotation), StartupSnapshot, RestoreService + RestoreApplier
   recovery/  DatabaseHealth (open-the-file probe), RecoveryServer (restore wizard), SnapshotRecovery, RecoveryLauncher
-  web/       POS screen, JSON API (/api/order, /api/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
+  web/       POS screen, JSON API (/api/order, /api/today, /api/stock/today, /api/orders/today, /api/auth, /api/owner incl. reports), /ping
 src/main/resources
   db/migration/   V1 schema, V2 seed defaults
   templates/      Thymeleaf pages
