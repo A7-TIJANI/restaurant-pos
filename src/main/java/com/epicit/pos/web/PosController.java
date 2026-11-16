@@ -5,6 +5,7 @@ import com.epicit.pos.repo.AddonRepository;
 import com.epicit.pos.repo.MenuItemRepository;
 import com.epicit.pos.repo.SettingsRepository;
 import com.epicit.pos.service.ReportService;
+import com.epicit.pos.service.StockTodayService;
 import com.epicit.pos.service.TodayCounterService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,14 +19,17 @@ public class PosController {
     private final AddonRepository addons;
     private final TodayCounterService counter;
     private final ReportService reports;
+    private final StockTodayService stockToday;
 
     public PosController(SettingsRepository settings, MenuItemRepository menuItems,
-                         AddonRepository addons, TodayCounterService counter, ReportService reports) {
+                         AddonRepository addons, TodayCounterService counter, ReportService reports,
+                         StockTodayService stockToday) {
         this.settings = settings;
         this.menuItems = menuItems;
         this.addons = addons;
         this.counter = counter;
         this.reports = reports;
+        this.stockToday = stockToday;
     }
 
     /**
@@ -42,6 +46,8 @@ public class PosController {
         model.addAttribute("today", counter.today());
         // Top 5 by quantity only; revenue per item stays owner-only (A16)
         model.addAttribute("top5", reports.topItemsToday());
+        // FR-1.11: sold-today and left per active item, quantities only
+        model.addAttribute("stockRows", stockToday.today());
         return "pos";
     }
 }

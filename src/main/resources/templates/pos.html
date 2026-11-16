@@ -92,6 +92,17 @@
     <div id="orders-list" class="orders-list">
         <div class="cart-empty">No orders yet today.</div>
     </div>
+    <div class="section-title">Stock &amp; sales today</div>
+    <div id="stock-panel" class="stock-panel">
+        <div class="stock-head"><span>Item</span><span>Sold today</span><span>Left</span></div>
+        <div class="stock-row-line" th:each="r : ${stockRows}"
+             th:classappend="${r.out ? 'out' : (r.low ? 'low' : '')}">
+            <span class="s-name" th:text="${r.name}">Item</span>
+            <span class="s-sold" th:text="${r.soldToday}">0</span>
+            <span class="s-left" th:text="${r.out ? 'Out' : r.stock}">0</span>
+        </div>
+        <div class="cart-empty" th:if="${#lists.isEmpty(stockRows)}">No menu items yet.</div>
+    </div>
 </div>
 
 <div class="preview-area">
