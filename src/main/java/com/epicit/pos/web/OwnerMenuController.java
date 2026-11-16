@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/owner/menu")
 public class OwnerMenuController {
 
-    public record RestockRequest(Integer delta) {
+    public record RestockRequest(Integer delta, Integer setTo) {
     }
 
     public record ActiveRequest(Boolean active) {
@@ -50,7 +50,7 @@ public class OwnerMenuController {
 
     @PostMapping("/items/{id}/restock")
     public ItemView restock(@PathVariable long id, @RequestBody RestockRequest in) {
-        return menu.restock(id, in.delta());
+        return menu.restock(id, in.delta(), in.setTo());
     }
 
     @PostMapping("/items/{id}/active")

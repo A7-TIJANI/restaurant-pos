@@ -1115,11 +1115,35 @@
     }
 
     function restockForm(item) {
+        // FR-6.3: two modes. "Add / remove" is a change; "Set to" is the exact number counted on the shelf.
+        var modeWrap = el('label', 'form-field');
+        modeWrap.appendChild(el('span', null, 'What do you want to do?'));
+        var mode = el('select');
+        [['delta', 'Add or remove some'], ['set', 'Set to an exact number']].forEach(function (o) {
+            var opt = el('option', null, o[1]);
+            opt.value = o[0];
+            mode.appendChild(opt);
+        });
+        modeWrap.appendChild(mode);
         var qty = field('How many to add? (use a minus sign to remove, e.g. -3)', 'number', { step: '1' });
-        menuForm('Restock ' + item.name, item.stock + ' in stock now.', [qty.wrap], 'Update stock', async function () {
+        var label = qty.wrap.querySelector('span');
+        mode.addEventListener('change', function () {
+            var exact = mode.value === 'set';
+            label.textContent = exact ? 'New stock (the number you counted, 0 or more)' : 'How many to add? (use a minus sign to remove, e.g. -3)';
+            qty.input.min = exact ? '0' : '';
+            qty.input.value = '';
+        });
+        menuForm('Restock ' + item.name, item.stock + ' in stock now.', [modeWrap, qty.wrap], 'Update stock', async function () {
             var d = toWholeNumber(qty.input.value);
-            if (isNaN(d) || d === 0) { return 'Enter a whole number other than 0.'; }
-            var res = await call('POST', '/api/owner/menu/items/' + item.id + '/restock', { delta: d });
+            var body;
+            if (mode.value === 'set') {
+                if (isNaN(d) || d < 0) { return 'Enter the counted stock as a whole number, 0 or more.'; }
+                body = { setTo: d };
+            } else {
+                if (isNaN(d) || d === 0) { return 'Enter a whole number other than 0.'; }
+                body = { delta: d };
+            }
+            var res = await call('POST', '/api/owner/menu/items/' + item.id + '/restock', body);
             if (!res.ok) { return (res.data && res.data.message) || 'Could not update the stock.'; }
             menuDirty = true;
             toast(item.name + ': ' + res.data.stock + ' in stock.', 'success');

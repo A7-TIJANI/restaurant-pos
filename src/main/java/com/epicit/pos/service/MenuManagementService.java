@@ -119,7 +119,22 @@ public class MenuManagementService {
 
     /** FR-6.3: add stock (positive) or remove it (negative: spoilage, miscount). Never below zero. */
     public ItemView restock(long id, Integer delta) {
-        if (delta == null || delta == 0 || Math.abs((long) delta) > MAX_STOCK) {
+        return restock(id, delta, null);
+    }
+
+    /**
+     * FR-6.3: either a relative change ({@code delta}) or "set to an exact number" ({@code setTo}, 0 or more, for a
+     * physical count). Exactly one of the two must be given. Both write the same audit row shape, old and new stock.
+     */
+    public ItemView restock(long id, Integer delta, Integer setTo) {
+        if ((delta == null) == (setTo == null)) {
+            throw bad("BAD_QUANTITY", "Give either a number to add or remove, or the exact stock to set.");
+        }
+        return setTo != null ? setExact(id, setTo) : adjust(id, delta);
+    }
+
+    private ItemView adjust(long id, int delta) {
+        if (delta == 0 || Math.abs((long) delta) > MAX_STOCK) {
             throw bad("BAD_QUANTITY", "Enter a whole number other than 0, up to " + MAX_STOCK + " (use a minus sign to remove stock).");
         }
         MenuItem current = item(id);
@@ -131,6 +146,22 @@ public class MenuManagementService {
         MenuItem after = item(id);   // the bulk update bypassed the persistence context: read the stored value
         audit.record("MENU_CHANGE", entity(after), "stock=" + (after.getStock() - delta), "stock=" + after.getStock(),
                 (delta > 0 ? "Restock +" : "Stock adjusted ") + delta + ": " + after.getName());
+        return toView(after);
+    }
+
+    private ItemView setExact(long id, int target) {
+        if (target < 0 || target > MAX_STOCK) {
+            throw bad("BAD_STOCK", "The stock must be between 0 and " + MAX_STOCK + ".");
+        }
+        MenuItem current = item(id);
+        int before = current.getStock();
+        if (before == target) {
+            return toView(current);   // nothing changed, so nothing to audit
+        }
+        items.setStock(id, target);
+        MenuItem after = item(id);
+        audit.record("MENU_CHANGE", entity(after), "stock=" + before, "stock=" + after.getStock(),
+                "Stock set to " + target + ": " + after.getName());
         return toView(after);
     }
 
