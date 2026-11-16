@@ -112,13 +112,23 @@ items (a deactivated item frees its colour), never `menu.length % N`. A price ch
 any other change a `MENU_CHANGE` row, in the same transaction; past orders keep the price they were sold at. Names must be
 unique among active items and add-ons (case-insensitive).
 
+## Clean shutdown and quick restart
+
+"Close POS" shows "Shutting down safely..." and polls the public `GET /api/shutdown-status` (`RUNNING`, `CLOSING`,
+`RELEASED`). `AppShutdown` releases the database *before* Spring tears the rest down: H2 `SHUTDOWN`, then the Hikari
+pool is closed, and only then is the state `RELEASED`; the screen shows "closed" on `RELEASED` or when the server stops
+answering. Starting again too soon is also tolerated: before Spring starts, `DatabaseHealth.checkWithRetry` waits up to
+8 seconds, one second apart, while H2 still refuses the file because a previous run is releasing it (already in use, or
+`28000` "wrong user name or password", which this app's fixed credentials can only produce in that situation). Real
+corruption is never retried and still goes to the restore wizard.
+
 ## Packaging (portable Windows app)
 The release is a zip with a folder containing `Epic it POS.exe`, the app and a bundled Java 21 runtime (jpackage `--type app-image`: no installer, no admin rights). jpackage cannot cross-compile, so it is built on Windows by `.github/workflows/release.yml`:
 
 - Actions > **Release** > Run workflow (zip appears under the run's Artifacts), or push a tag `v2.0.0` (also creates a GitHub release).
 - The workflow runs `mvn verify`, `packaging/build-app-image.ps1`, then `packaging/smoke-test.ps1`, which boots the real exe, checks `/ping` and the POS page, closes it via the owner endpoint and checks it exits cleanly.
 - Locally on Windows with JDK 21: `.\packaging\build-app-image.ps1 -Version 2.0.0`.
-- The exe is unsigned, so SmartScreen warns once; see `packaging/README-FIRST.txt` and `docs/user-manual.md`.
+- The exe is unsigned, so SmartScreen warns once, and Windows Defender can lock the bundled runtime and cause "Failed to launch JVM" unless the install folder is added to Defender's exclusions **before extracting the zip** (Step 1 in `packaging/README-FIRST.txt` and `docs/user-manual.md`). A code-signing certificate is planned for v2.1 to remove both.
 - The app has no console: logs go to `<data dir>\logs\epicit-pos.log`; start-up times to `startup-times.log`. See `docs/field-test-guide.md`.
 
 ## Settings, first run and sound

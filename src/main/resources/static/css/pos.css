@@ -366,3 +366,7 @@ body.locked .menu-card, body.locked .addon-tag, body.locked .pay-btn, body.locke
 .stock-row-line.low { border-left-color: #f39c12; }
 .stock-row-line.out { border-left-color: var(--danger); color: var(--danger); font-weight: bold; }
 .stock-head span:not(:first-child), .s-sold, .s-left { text-align: right; }
+
+/* "Shutting down safely..." spinner on the close screen */
+.closing-spinner { width: 46px; height: 46px; border: 5px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; margin-bottom: 18px; animation: closing-spin 0.9s linear infinite; }
+@keyframes closing-spin { to { transform: rotate(360deg); } }

@@ -990,12 +990,49 @@
 
     // ---- closing the app (the packaged app has no window to close) -------------------------------------------
 
-    function showClosedScreen() {
+    // "Close POS" first shows "Shutting down safely..." and polls /api/shutdown-status. "Closed" appears only when the
+    // server says the data file is released, or the server no longer answers (the JVM is gone).
+    var closeScreen = null;
+
+    function showClosingScreen(closed, slow) {
         // an overlay, not a wiped page: the clock and refresh timers still tick and must find their elements
-        var screen = el('div', 'closed-screen');
-        screen.appendChild(el('h1', null, 'Epic IT POS is closed'));
-        screen.appendChild(el('p', null, 'You can close this browser tab. To open the POS again, double-click Epic it POS.'));
-        document.body.appendChild(screen);
+        if (!closeScreen) {
+            closeScreen = el('div', 'closed-screen');
+            document.body.appendChild(closeScreen);
+        }
+        closeScreen.textContent = '';
+        if (closed) {
+            closeScreen.appendChild(el('h1', null, 'Epic IT POS is closed'));
+            closeScreen.appendChild(el('p', null, 'You can close this browser tab. To open the POS again, double-click Epic it POS.'));
+            if (slow) {
+                closeScreen.appendChild(el('p', null, 'It took longer than usual to close. Wait a few seconds before opening it again.'));
+            }
+        } else {
+            closeScreen.appendChild(el('div', 'closing-spinner'));
+            closeScreen.appendChild(el('h1', null, 'Shutting down safely...'));
+            closeScreen.appendChild(el('p', null, 'Please wait. Do not switch off the laptop or open the POS again yet.'));
+        }
+    }
+
+    async function pollShutdown() {
+        var started = Date.now();
+        while (true) {
+            var state = null;
+            var gone = false;
+            try {
+                var ctl = new AbortController();
+                var timer = setTimeout(function () { ctl.abort(); }, 1500);
+                var res = await fetch('/api/shutdown-status', { cache: 'no-store', signal: ctl.signal });
+                clearTimeout(timer);
+                if (res.status === 404) { gone = true; }
+                else if (res.ok) { state = (await res.json()).state; }
+            } catch (e) {
+                gone = true;   // refused or timed out: the server has stopped
+            }
+            if (gone || state === 'RELEASED') { showClosingScreen(true, false); return; }
+            if (Date.now() - started > 30000) { showClosingScreen(true, true); return; }
+            await new Promise(function (resolve) { setTimeout(resolve, 400); });
+        }
     }
 
     function closeApp() {
@@ -1004,7 +1041,7 @@
             [{ label: 'Cancel', kind: 'secondary', onClick: function () { } },
              { label: 'Close POS', kind: 'danger', onClick: async function () {
                 var r = await call('POST', '/api/owner/app/close');
-                if (r.ok) { showClosedScreen(); }
+                if (r.ok) { showClosingScreen(false); pollShutdown(); }
                 else if (owner.unlocked) { toast((r.data && r.data.message) || 'Could not close the POS.', 'error'); }
              } }]);
     }
