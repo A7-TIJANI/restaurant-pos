@@ -127,6 +127,58 @@ class OrderServiceTest {
         assertThat(off.lines().get(0).addons()).isEmpty();
     }
 
+    // ---- add-on lines never merge (FR-1.1) ----------------------------------------------------------------
+
+    @Test
+    void tappingAfterAnAddonStartsANewPlainLineInsteadOfMergingIntoTheAddonLine() {
+        long lineId = service.addItem(meat.getId()).lines().get(0).id();
+        long onion = addons.findByActiveTrueOrderByIdAsc().get(0).getId();
+        service.toggleAddon(lineId, onion);
+
+        OrderView view = service.addItem(meat.getId());
+
+        assertThat(view.lines()).hasSize(2);
+        assertThat(view.lines().get(0).qty()).isEqualTo(1);
+        assertThat(view.lines().get(0).addons()).hasSize(1);
+        assertThat(view.lines().get(1).qty()).isEqualTo(1);
+        assertThat(view.lines().get(1).addons()).isEmpty();
+    }
+
+    @Test
+    void furtherTapsIncrementThePlainLineNotTheAddonLine() {
+        long lineId = service.addItem(meat.getId()).lines().get(0).id();
+        service.toggleAddon(lineId, addons.findByActiveTrueOrderByIdAsc().get(0).getId());
+        service.addItem(meat.getId());
+
+        OrderView view = service.addItem(meat.getId());
+
+        assertThat(view.lines()).hasSize(2);
+        assertThat(view.lines().get(0).qty()).isEqualTo(1);
+        assertThat(view.lines().get(1).qty()).isEqualTo(2);
+    }
+
+    @Test
+    void stockIsCheckedAcrossAllLinesOfTheSameItem() {
+        meat.setStock(2);
+        menuItems.saveAndFlush(meat);
+        long lineId = service.addItem(meat.getId()).lines().get(0).id();
+        service.toggleAddon(lineId, addons.findByActiveTrueOrderByIdAsc().get(0).getId());
+        service.addItem(meat.getId());                       // 1 with add-on + 1 plain = 2 of 2
+
+        assertRejected(() -> service.addItem(meat.getId()), "OUT_OF_STOCK");
+    }
+
+    @Test
+    void plusOnALineCannotPushTheItemsTotalPastStock() {
+        meat.setStock(2);
+        menuItems.saveAndFlush(meat);
+        long addonLine = service.addItem(meat.getId()).lines().get(0).id();
+        service.toggleAddon(addonLine, addons.findByActiveTrueOrderByIdAsc().get(0).getId());
+        service.addItem(meat.getId());                       // plain line, 2 of 2 used
+
+        assertRejected(() -> service.changeQuantity(addonLine, 1), "OUT_OF_STOCK");
+    }
+
     @Test
     void paymentMethodIsPerOrder() {
         assertThat(service.current().paymentMethod()).isEqualTo(PaymentMethod.CASH);

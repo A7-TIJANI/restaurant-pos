@@ -1295,7 +1295,8 @@
         queue(async function () {
             var o = await act('POST', '/api/order/items', { menuItemId: id });
             if (o) {
-                var line = o.lines.find(function (l) { return l.menuItemId === id; });
+                // Select the plain (no add-ons) line the tap landed on, so the next add-on goes onto it (FR-1.1).
+                var line = o.lines.find(function (l) { return l.menuItemId === id && l.addons.length === 0; });
                 if (line) { selectedLineId = line.id; render(); }
                 sound('click');
             }
