@@ -54,7 +54,11 @@ public class OrderService {
 
     // ---- editing (DRAFT only) ---------------------------------------------------------------------------
 
-    /** Tap a menu card: adds a line, or increments the quantity of the existing one (FR-1.1). */
+    /**
+     * Tap a menu card (FR-1.1): increments the item's plain line (no add-ons), or starts a new plain line. A line
+     * that already carries add-ons is never merged into, so "Kofta + Onion" and a plain "Kofta" stay separate.
+     * Stock is checked against the item's total across all of its lines.
+     */
     public OrderView addItem(long menuItemId) {
         MenuItem item = menuItems.findById(menuItemId)
                 .orElseThrow(() -> notFound("That menu item no longer exists."));
@@ -63,17 +67,16 @@ public class OrderService {
                     item.getName() + " is no longer on the menu.");
         }
         CustomerOrder order = editableDraft();
-        OrderLine line = order.getLines().stream()
-                .filter(l -> Objects.equals(l.getMenuItem().getId(), item.getId()))
-                .findFirst().orElse(null);
-        int newQty = line == null ? 1 : line.getQty() + 1;
-        if (newQty > item.getStock()) {
+        if (quantityOf(order, item) + 1 > item.getStock()) {
             throw outOfStock(item);
         }
-        if (line == null) {
+        OrderLine plain = order.getLines().stream()
+                .filter(l -> Objects.equals(l.getMenuItem().getId(), item.getId()) && l.getAddons().isEmpty())
+                .findFirst().orElse(null);
+        if (plain == null) {
             order.addLine(item, 1);
         } else {
-            line.setQty(newQty);
+            plain.setQty(plain.getQty() + 1);
         }
         return save(order);
     }
@@ -90,7 +93,8 @@ public class OrderService {
             order.getLines().remove(line);
         } else {
             MenuItem item = line.getMenuItem();
-            if (newQty > item.getStock()) {
+            // Stock is per item, so count every line of it (a plain and an add-on line draw from the same shelf).
+            if (quantityOf(order, item) - line.getQty() + newQty > item.getStock()) {
                 throw outOfStock(item);
             }
             line.setQty(newQty);
@@ -247,6 +251,14 @@ public class OrderService {
             throw locked(order);
         }
         return order;
+    }
+
+    /** Total quantity of one menu item across all lines of the order. */
+    private static int quantityOf(CustomerOrder order, MenuItem item) {
+        return order.getLines().stream()
+                .filter(l -> Objects.equals(l.getMenuItem().getId(), item.getId()))
+                .mapToInt(OrderLine::getQty)
+                .sum();
     }
 
     private OrderView save(CustomerOrder order) {
