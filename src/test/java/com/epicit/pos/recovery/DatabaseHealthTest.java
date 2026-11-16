@@ -14,7 +14,9 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -128,5 +130,57 @@ class DatabaseHealthTest {
                 System.in.read();
             }
         }
+    }
+
+    // ---- waiting for a previous run that is still releasing the file (quick close and reopen) -----------------
+
+    private static Result pending() {
+        return DatabaseHealth.classify(new SQLException("Wrong user name or password [28000-232]", "28000", 28000));
+    }
+
+    @Test
+    void aWrongPasswordRefusalIsTreatedAsReleasePendingNotAsCorruption() {
+        assertThat(pending().state()).isEqualTo(State.BROKEN);
+        assertThat(pending().releasePending()).isTrue();
+        assertThat(DatabaseHealth.classify(new SQLException("File corrupted", "90030", 90030)).releasePending()).isFalse();
+    }
+
+    @Test
+    void retriesWhileThePreviousRunIsStillReleasingThenSucceeds() {
+        List<Result> answers = new ArrayList<>(List.of(pending(), pending(), Result.ok()));
+        List<Long> sleeps = new ArrayList<>();
+
+        Result r = DatabaseHealth.checkWithRetry(() -> answers.remove(0), 4, 1000, sleeps::add);
+
+        assertThat(r.state()).isEqualTo(State.OK);
+        assertThat(sleeps).containsExactly(1000L, 1000L);
+    }
+
+    @Test
+    void givesUpAfterTheRetriesAndKeepsTheOriginalOutcome() {
+        List<Long> sleeps = new ArrayList<>();
+
+        Result r = DatabaseHealth.checkWithRetry(DatabaseHealthTest::pending, 3, 1000, sleeps::add);
+
+        assertThat(r.state()).isEqualTo(State.BROKEN);   // then the restore wizard, as before
+        assertThat(sleeps).hasSize(3);
+    }
+
+    @Test
+    void realCorruptionIsNeverRetried() {
+        List<Long> sleeps = new ArrayList<>();
+        Result corrupt = new Result(State.BROKEN, "The data file is empty.");
+
+        Result r = DatabaseHealth.checkWithRetry(() -> corrupt, 4, 1000, sleeps::add);
+
+        assertThat(r).isEqualTo(corrupt);
+        assertThat(sleeps).isEmpty();
+    }
+
+    @Test
+    void aLockedDatabaseIsRetriedToo() {
+        List<Result> answers = new ArrayList<>(List.of(new Result(State.LOCKED, "busy"), Result.ok()));
+
+        assertThat(DatabaseHealth.checkWithRetry(() -> answers.remove(0), 4, 0, ms -> { }).state()).isEqualTo(State.OK);
     }
 }

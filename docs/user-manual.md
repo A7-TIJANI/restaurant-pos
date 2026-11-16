@@ -1,5 +1,17 @@
 # Epic IT POS: user manual
 
+## Step 1: Add the Windows Defender exclusion (do this BEFORE extracting the zip)
+The program is new to Microsoft and is not digitally signed yet. Windows Defender scans the Java runtime bundled inside it while it starts, can lock or quarantine those files, and then the program stops with **"Failed to launch JVM"**. Tell Defender to leave the program's folder alone, **once, before you extract the zip**:
+1. Create an empty folder where the POS will live, for example `D:\EpicPOS` (or `C:\EpicPOS`).
+2. Open **Windows Security** (Start menu, type "Windows Security") > **Virus & threat protection**.
+3. Under *Virus & threat protection settings* click **Manage settings**, then scroll to **Exclusions** and click **Add or remove exclusions**.
+4. Click **Add an exclusion** > **Folder** and choose the folder from step 1. Accept the Windows permission prompt.
+5. Only now, right-click the zip > **Extract All**, and pick that same folder.
+
+Only that folder is excluded. If you already extracted the zip and see "Failed to launch JVM", add the exclusion for the folder, then delete the extracted program folder and extract the zip again, so no file stays quarantined. Your sales data is stored elsewhere (`%LOCALAPPDATA%\EpicIT POS`) and is not touched.
+
+A later version will be digitally signed, which will remove the need for this step.
+
 ## Starting
 Double-click **Epic it POS.exe**. The POS opens in your browser. No installation and no internet are needed.
 
@@ -16,7 +28,7 @@ Tap a menu item to add it; tap it again to add another. To give an item an add-o
 Scroll down on the POS screen, below **Today's Orders**, to **Stock & sales today**. For every item on the menu it shows how many were **sold today** and how many are **left**. Items that are **out** of stock are listed first, then the ones running low. The panel updates after each finished order. You cannot change stock from here, only the owner can. It never shows money per item; the total for the day is in the strip at the top.
 
 ## Closing
-Unlock the owner area and press **Close POS**. Closing the browser tab does not stop the POS; if you closed the tab by mistake, double-click **Epic it POS.exe** again and it reopens the same window.
+Unlock the owner area and press **Close POS**. The screen shows **"Shutting down safely..."** with a spinner while the POS saves and releases its data. Wait for **"Epic IT POS is closed"** before you open it again; this normally takes a few seconds. If you do double-click the program too early, it waits a few seconds for the data to be released before it starts. Closing the browser tab does not stop the POS; if you closed the tab by mistake, double-click **Epic it POS.exe** again and it reopens the same window.
 
 ## Menu and stock (owner)
 Owner area > **Menu**: add items, change prices, restock, and deactivate items. Nothing is ever deleted, so old receipts stay correct; a deactivated item can be reactivated.

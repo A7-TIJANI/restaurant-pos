@@ -35,7 +35,7 @@ public final class RecoveryLauncher {
     /** Test seam: {@code onWizardUrl} receives the wizard address instead of opening a browser. */
     public static boolean ensureDatabaseUsable(AppPaths paths, Clock clock, boolean openBrowser, Consumer<String> onWizardUrl) {
         while (true) {
-            Result health = DatabaseHealth.check(paths);
+            Result health = DatabaseHealth.checkWithRetry(paths);
             if (health.state() == State.OK) {
                 return true;
             }

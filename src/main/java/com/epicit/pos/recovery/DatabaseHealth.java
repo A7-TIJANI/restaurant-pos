@@ -8,6 +8,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.function.LongConsumer;
+import java.util.function.Supplier;
 
 /**
  * NFR-6: "opening the database <em>is</em> the integrity check". H2 runs its own recovery when a file is opened
@@ -22,16 +24,64 @@ public final class DatabaseHealth {
 
     public enum State { OK, LOCKED, BROKEN }
 
-    public record Result(State state, String detail) {
+    /** {@code releasePending}: the refusal looks like a previous run still closing the file, so waiting may help. */
+    public record Result(State state, String detail, boolean releasePending) {
+        public Result(State state, String detail) {
+            this(state, detail, state == State.LOCKED);
+        }
+
         static Result ok() {
-            return new Result(State.OK, "");
+            return new Result(State.OK, "", false);
         }
     }
 
     /** H2 ErrorCode.DATABASE_ALREADY_OPEN_1: "Database may be already in use". */
     static final int H2_DATABASE_ALREADY_OPEN = 90020;
 
+    /** Another process is still closing the file (a quick close-and-reopen): worth waiting for. */
+    static final int RETRIES = 8;
+    static final long RETRY_DELAY_MILLIS = 1000;
+
+    /** H2 codes seen while a previous run is still letting go of the file (see {@link #isReleasePending}). */
+    private static final int H2_WRONG_USER_OR_PASSWORD = 28000;
+    private static final int H2_DATABASE_IS_CLOSED = 90098;
+    private static final int H2_DATABASE_CALLED_AT_SHUTDOWN = 90121;
+    private static final int H2_LOCK_TIMEOUT = 50200;
+
     private DatabaseHealth() {
+    }
+
+    /**
+     * {@link #check} that waits out a database the previous run is still releasing. The owner can press Close POS and
+     * double-click the exe again within seconds; for a moment H2 then refuses the file, sometimes as "already in use"
+     * and sometimes as 28000 "wrong user name or password" (the app only ever uses its own credentials, so that code
+     * means "not released yet", not a bad password). Up to {@link #RETRIES} retries, one second apart. A database that is
+     * still refused after that falls through to the normal handling (the lock message or the restore wizard).
+     */
+    public static Result checkWithRetry(AppPaths paths) {
+        return checkWithRetry(() -> check(paths), RETRIES, RETRY_DELAY_MILLIS, DatabaseHealth::sleep);
+    }
+
+    static Result checkWithRetry(Supplier<Result> probe, int retries, long delayMillis, LongConsumer sleeper) {
+        Result result = probe.get();
+        for (int attempt = 1; attempt <= retries && !isOkOrFinal(result); attempt++) {
+            System.err.println("The database is still being released by the previous run; retrying (" + attempt + "/" + retries + ").");
+            sleeper.accept(delayMillis);
+            result = probe.get();
+        }
+        return result;
+    }
+
+    private static boolean isOkOrFinal(Result result) {
+        return result.state() == State.OK || (result.state() == State.BROKEN && !result.releasePending());
+    }
+
+    private static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     public static Result check(AppPaths paths) {
@@ -71,7 +121,21 @@ public final class DatabaseHealth {
                 return new Result(State.LOCKED, "Another copy of Epic IT POS is probably still running.");
             }
         }
-        return new Result(State.BROKEN, firstLine(e.getMessage()));
+        return new Result(State.BROKEN, firstLine(e.getMessage()), isReleasePending(e));
+    }
+
+    /** True for the H2 refusals that a previous run still holding the file produces; never for real corruption. */
+    static boolean isReleasePending(SQLException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql) {
+                int code = sql.getErrorCode();
+                if (code == H2_WRONG_USER_OR_PASSWORD || code == H2_DATABASE_IS_CLOSED
+                        || code == H2_DATABASE_CALLED_AT_SHUTDOWN || code == H2_LOCK_TIMEOUT) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static String firstLine(String message) {
